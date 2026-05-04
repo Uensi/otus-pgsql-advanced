@@ -1,2 +1,2 @@
-# otus-pgsql-advanced
-otus-pgsql-advanced
+# Домашние задания курса OTUS "PostgreSQL.Advanced" группа Postgres-Advanced-2026-04
+
