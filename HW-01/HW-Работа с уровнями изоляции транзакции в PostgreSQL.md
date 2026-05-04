@@ -14,3 +14,14 @@ dnf install postgresql18 postgresql-17-contrib
 postgresql-17-setup initdb
 systemctl enable postgresql-17.service --now
 systemctl status postgresql-17.service
+```
+
+
+## 2. Создание таблицы shipments 
+```sql
+create table shipments(id serial, product_name text, quantity int, destination text);
+insert into shipments(product_name, quantity, destination) values('bananas', 1000, 'Europe');
+insert into shipments(product_name, quantity, destination) values('coffee', 500, 'USA');
+commit;
+```
+
