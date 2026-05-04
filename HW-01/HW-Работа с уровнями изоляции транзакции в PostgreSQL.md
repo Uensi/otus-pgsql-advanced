@@ -13,4 +13,4 @@
 dnf install postgresql18 postgresql-17-contrib
 postgresql-17-setup initdb
 systemctl enable postgresql-17.service --now
-systemctl status postgresql-15.service
+systemctl status postgresql-17.service
