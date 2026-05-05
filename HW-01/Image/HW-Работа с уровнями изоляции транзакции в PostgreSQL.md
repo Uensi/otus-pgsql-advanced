@@ -16,8 +16,12 @@ systemctl enable postgresql-17.service --now
 systemctl status postgresql-17.service
 ```
 
+## 2. Подключение к postgresql
+```bash
+sudo -i -u postgres psql
+```
 
-## 2. Создание таблицы shipments 
+## 3. Создание таблицы shipments
 ```sql
 create table shipments(id serial, product_name text, quantity int, destination text);
 insert into shipments(product_name, quantity, destination) values('bananas', 1000, 'Europe');
@@ -25,8 +29,4 @@ insert into shipments(product_name, quantity, destination) values('coffee', 500,
 commit;
 ```
 
-## 3. Подключение к postgresql
-```bash
-sudo -i -u postgres psql
-```
 
