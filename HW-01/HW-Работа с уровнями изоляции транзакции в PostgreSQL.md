@@ -60,7 +60,7 @@ show transaction isolation level;
 ```sql
 BEGIN;
 ```
-![создание таблицы shipments](HW-01/image/read_commited.png)
+![создание таблицы shipments](image/read_commited.png)
 
 ##### 4.3 В первой сессии добавляем новую запись
 ```sql
