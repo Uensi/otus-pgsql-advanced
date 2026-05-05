@@ -43,7 +43,7 @@ values('coffee', 500, 'USA');
 
 COMMIT;
 ```
-![создание таблицы shipments](HW-01/image/create_table.png)
+![создание таблицы shipments](HW-01/create_table.png)
 ###### Пояснения
 ```sql
 \set AUTOCOMMIT off   -- отключаем автоматическую фиксацию транзакции
