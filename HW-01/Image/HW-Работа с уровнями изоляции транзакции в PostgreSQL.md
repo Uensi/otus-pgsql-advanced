@@ -25,3 +25,8 @@ insert into shipments(product_name, quantity, destination) values('coffee', 500,
 commit;
 ```
 
+## 3. Подключение к postgresql
+```bash
+sudo -i -u postgres psql
+```
+
