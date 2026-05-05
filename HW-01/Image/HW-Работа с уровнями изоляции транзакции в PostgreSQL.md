@@ -36,6 +36,11 @@ create table shipments(
 
 insert into shipments(product_name, quantity, destination) 
 values('bananas', 1000, 'Europe');
+### Пояснения
+```sql
+\set AUTOCOMMIT off   -- отключаем автоматическую фиксацию транзакции
+BEGIN;                -- начало транзакции
+COMMIT;               -- фиксация изменений
 
 insert into shipments(product_name, quantity, destination) 
 values('coffee', 500, 'USA');
