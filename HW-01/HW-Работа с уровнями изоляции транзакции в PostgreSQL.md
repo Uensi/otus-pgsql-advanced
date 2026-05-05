@@ -43,7 +43,7 @@ values('coffee', 500, 'USA');
 
 COMMIT;
 ```
-![создание таблицы shipments](HW-01/image/create_table.png)
+![создание таблицы shipments](image/create_table.png)
 ###### Пояснения
 ```sql
 \set AUTOCOMMIT off   -- отключаем автоматическую фиксацию транзакции
@@ -67,7 +67,7 @@ BEGIN;
 insert into shipments(product_name, quantity, destination) 
 values('sugar', 300, 'Asia');
 ```
-![создание таблицы shipments](HW-01/image/session1.png)
+![создание таблицы shipments](image/session1.png)
 
 ###### Команда COMMIT не выполнялась.
 
@@ -75,7 +75,7 @@ values('sugar', 300, 'Asia');
 ```sql
 select * from shipments;
 ```
-![создание таблицы shipments](HW-01/image/session2.png)
+![создание таблицы shipments](image/session2.png)
 
 ###### Результат:
 Новая запись о сахаре не видна. Видны только bananas и coffee.
@@ -86,13 +86,13 @@ select * from shipments;
 -- В первой сессии
 COMMIT;
 ```
-![создание таблицы shipments](HW-01/image/session1_cpmmit.png)
+![создание таблицы shipments](image/session1_cpmmit.png)
 
 ##### 4.6 Повторно читаем во второй сессии
 ```sql
 select * from shipments;
 ```
-![создание таблицы shipments](HW-01/image/session2_read.png)
+![создание таблицы shipments](image/session2_read.png)
 
 ###### Результат:
 Теперь запись о сахаре видна.
@@ -115,7 +115,7 @@ insert into shipments(product_name, quantity, destination)
 values('bananas', 2000, 'Africa');
 ```
 
-![создание таблицы shipments](HW-01/image/session1_insert_repeatable.png)
+![создание таблицы shipments](image/session1_insert_repeatable.png)
 
 ###### COMMIT пока не выполняем.
 
@@ -124,7 +124,7 @@ values('bananas', 2000, 'Africa');
 select * from shipments;
 ```
 
-![создание таблицы shipments](HW-01/image/session2_select_repeatable.png)
+![создание таблицы shipments](image/session2_select_repeatable.png)
 
 ###### Результат:
 Новая запись (бананы в Африку) не видна.
@@ -135,13 +135,13 @@ select * from shipments;
 ```sql
 COMMIT;
 ```
-![создание таблицы shipments](HW-01/image/session1_commit_reatable.png)
+![создание таблицы shipments](image/session1_commit_reatable.png)
 
 ##### 5.3 Повторно читаем во второй сессии (без завершения её транзакции)
 ```sql
 select * from shipments;
 ```
-![создание таблицы shipments](HW-01/image/session2_select2_repeatable.png)
+![создание таблицы shipments](image/session2_select2_repeatable.png)
 
 ###### Результат:
 Запись по-прежнему не видна.
@@ -157,7 +157,7 @@ COMMIT;   -- или ROLLBACK, транзакция завершается
 BEGIN;
 select * from shipments;
 ```
-![создание таблицы shipments](HW-01/image/session2_commit2.png)
+![создание таблицы shipments](image/session2_commit2.png)
 
 ###### Результат
 Теперь запись о бананах в Африку видна.
