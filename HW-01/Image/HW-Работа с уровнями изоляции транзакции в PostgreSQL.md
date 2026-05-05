@@ -42,9 +42,10 @@ insert into shipments(product_name, quantity, destination)
 values('coffee', 500, 'USA');
 
 COMMIT;
-```sql
+```
 ###### Пояснения
 ```sql
 \set AUTOCOMMIT off   -- отключаем автоматическую фиксацию транзакции
 BEGIN;                -- начало транзакции
 COMMIT;               -- фиксация изменений
+```
