@@ -22,9 +22,10 @@ sudo -i -u postgres psql
 ```
 
 ## 3. Работа с транзакциями: создание таблицы shipments
-### Действия в первой сессии
+##### Действия в первой сессии
 ```sql
 \set AUTOCOMMIT off
+\echo :AUTOCOMMIT
 BEGIN;
 
 create table shipments(
@@ -41,10 +42,9 @@ insert into shipments(product_name, quantity, destination)
 values('coffee', 500, 'USA');
 
 COMMIT;
-```
-### Пояснения
+```sql
+###### Пояснения
 ```sql
 \set AUTOCOMMIT off   -- отключаем автоматическую фиксацию транзакции
 BEGIN;                -- начало транзакции
 COMMIT;               -- фиксация изменений
-```
