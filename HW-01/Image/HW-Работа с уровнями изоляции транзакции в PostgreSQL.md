@@ -21,12 +21,24 @@ systemctl status postgresql-17.service
 sudo -i -u postgres psql
 ```
 
-## 3. Создание таблицы shipments
+## 3. Работа с транзакциями: создание таблицы shipments
+### Действия в первой сессии
 ```sql
-create table shipments(id serial, product_name text, quantity int, destination text);
-insert into shipments(product_name, quantity, destination) values('bananas', 1000, 'Europe');
-insert into shipments(product_name, quantity, destination) values('coffee', 500, 'USA');
-commit;
-```
+\set AUTOCOMMIT off
+BEGIN;
 
+create table shipments(
+    id serial primary key, 
+    product_name text, 
+    quantity int, 
+    destination text
+);
 
+insert into shipments(product_name, quantity, destination) 
+values('bananas', 1000, 'Europe');
+
+insert into shipments(product_name, quantity, destination) 
+values('coffee', 500, 'USA');
+
+COMMIT;
+```sql
