@@ -10,7 +10,7 @@
 ## 1. Установка PostgreSQL
 
 ```bash
-dnf install postgresql18 postgresql-17-contrib
+dnf install postgresql17 postgresql-17-contrib
 postgresql-17-setup initdb
 systemctl enable postgresql-17.service --now
 systemctl status postgresql-17.service
