@@ -114,7 +114,6 @@ SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 insert into shipments(product_name, quantity, destination) 
 values('bananas', 2000, 'Africa');
 ```
-
 ![создание таблицы shipments](image/session1_insert_repeatable.png)
 
 ###### COMMIT пока не выполняем.
@@ -123,7 +122,6 @@ values('bananas', 2000, 'Africa');
 ```sql
 select * from shipments;
 ```
-
 ![создание таблицы shipments](image/session2_select_repeatable.png)
 
 ###### Результат:
