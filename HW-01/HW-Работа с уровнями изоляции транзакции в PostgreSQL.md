@@ -86,7 +86,7 @@ select * from shipments;
 -- В первой сессии
 COMMIT;
 ```
-![создание таблицы shipments](image/session1_cpmmit.png)
+![создание таблицы shipments](image/session1_commit.png)
 
 ##### 4.6 Повторно читаем во второй сессии
 ```sql
