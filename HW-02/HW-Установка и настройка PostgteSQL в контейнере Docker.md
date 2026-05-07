@@ -29,13 +29,12 @@ docker run --name pg-server \
   -v /var/lib/postgres:/var/lib/postgresql/data \
   -d postgres:17
 ```
-###### 
---name pg-server --> имя контейнера
--e POSTGRES_PASSWORD=secret --> пароль для пользователя postgres
--p 127.0.0.1:5432:5432 --> пробрас порта из контейнера в хост (чтобы подключиться снаружи)
--v /var/lib/postgres:/var/lib/postgresql/data --> монтируем наш каталог в контейнер (здесь будет находиться БД)
--d postgres:17 --> запускаем в фоне версию 17
-######
+### Описание
+`--name pg-server` --> имя контейнера
+`-e POSTGRES_PASSWORD=secret` --> пароль для пользователя postgres
+`-p 127.0.0.1:5432:5432` --> пробрас порта из контейнера в хост (чтобы подключиться снаружи)
+`-v /var/lib/postgres:/var/lib/postgresql/data` --> монтируем наш каталог в контейнер (здесь будет находиться БД)
+`-d postgres:17` --> запускаем в фоне версию 17
 
 #### 2.3 Смотрим, что контейнер запустился
 ```bash
