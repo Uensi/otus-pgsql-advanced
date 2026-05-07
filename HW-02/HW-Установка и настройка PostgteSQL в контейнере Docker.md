@@ -53,9 +53,8 @@ docker run --rm -it \
   postgres:17 \
   psql -h localhost -U postgres
 ```
-######
-
-флаг --network host: Этот флаг заставляет контейнер-клиент использовать сеть сервера напрямую. Это самый простой способ для временного клиента обратиться к серверу через localhost
+### Описание  
+флаг `--network host`: Этот флаг заставляет контейнер-клиент использовать сеть сервера напрямую. Это самый простой способ для временного клиента обратиться к серверу через localhost
 
 ![psql_client](image/psql_client.png)
 
@@ -132,7 +131,7 @@ docker run --rm -it --network host -e PGPASSWORD=secret postgres:17 psql -h loca
 ### Проблемы с которыми столкнулся
 
 - **`permission denied` при запуске Docker**  
-  → Нужно былодобавить пользователя в группу `docker`: ` usermod -aG docker $USER`
+  → Нужно было добавить пользователя в группу `docker`: ` usermod -aG docker $USER`
 
 - **Не мог подключиться с ноутбука**  
   → Нужно было открыть порт на fw чтоб  `listen_addresses='*'` и порт `5432` были открыты
