@@ -133,7 +133,7 @@ docker run --rm -it --network host -e PGPASSWORD=secret postgres:17 psql -h loca
   --> Нужно было добавить пользователя в группу `docker`: ` usermod -aG docker $USER`
 
 - **Не мог подключиться с ноутбука**  
-  --> Нужно было открыть порт на fw чтоб  `listen_addresses='*'` и порт `5432` были открыты
+  --> Нужно было открыть порт на fw чтобы  `listen_addresses='*'` и порт `5432` были открыты
 
 
 
