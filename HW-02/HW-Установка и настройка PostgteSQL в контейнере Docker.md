@@ -129,4 +129,13 @@ docker run --rm -it --network host -e PGPASSWORD=secret postgres:17 psql -h loca
 
 ![psql_client](image/psql_client2.png)
 
+### Проблемы с которыми столкнулся
+
+- **`permission denied` при запуске Docker**  
+  → Нужно былодобавить пользователя в группу `docker`: ` usermod -aG docker $USER`
+
+- **Не мог подключиться с ноутбука**  
+  → Нужно было открыть порт на fw чтоб  `listen_addresses='*'` и порт `5432` были открыты
+
+
 
