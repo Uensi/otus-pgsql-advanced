@@ -120,7 +120,7 @@ docker run --name pg-server \
   -c listen_addresses='*'
 ```
 
-![docker_run2](image/docker_run3.png)
+![docker_run3](image/docker_run3.png)
 
 #### 5.3 Проверяем данные
 ```bash
