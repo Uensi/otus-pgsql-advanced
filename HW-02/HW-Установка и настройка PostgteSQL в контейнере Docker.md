@@ -41,7 +41,7 @@ docker run --name pg-server \
 ```bash
 docker ps
 ```
-![Состояние докера](HW-02/image/docker_run.png)
+![Состояние докера](/image/docker_run.png)
 
 ## 3. Создание и наполнение таблицы (через клиент)
 
