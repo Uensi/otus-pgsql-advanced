@@ -2,7 +2,7 @@
 
 ## Информация о проекте
 - **Название ВМ:** bananaflow-30081986
-- **Дата выполнения:** 2026-05-06
+- **Дата выполнения:** 2026-05-07
 - **Версия PostgreSQL:** 17
 
 ## 1. Подключаемся к серверу и устанавливаем Docker
@@ -41,7 +41,7 @@ docker run --name pg-server \
 ```bash
 docker ps
 ```
-![Состояние докера](HW-02/image/docker_run.png)
+![Состояние докера](image/docker_run.png)
 
 ## 3. Создание и наполнение таблицы (через клиент)
 
@@ -57,7 +57,7 @@ docker run --rm -it \
 
 флаг --network host: Этот флаг заставляет контейнер-клиент использовать сеть сервера напрямую. Это самый простой способ для временного клиента обратиться к серверу через localhost
 
-![psql_client](HW-02/image/psql_client.png)
+![psql_client](image/psql_client.png)
 
 ```sql
 create table shipments(id serial, product_name text, quantity int, destination text);
@@ -74,7 +74,7 @@ insert into shipments(product_name, quantity, destination) values('sugar', 600, 
 insert into shipments(product_name, quantity, destination) values('sugar', 400, 'USA');"
 ```
 
-![insert](HW-02/image/insert.png)
+![insert](image/insert.png)
 
 ## 4. Подключение с ноутбука
 
@@ -96,11 +96,11 @@ docker run --name pg-server \
   -d postgres:17 \
   -c listen_addresses='*'
 ```
-![docker_run2](HW-02/image/docker_run2.png)
+![docker_run2](image/docker_run2.png)
 
 #### 4.3 Подключаемся с ноутбука
 
-![pgadmin](HW-02/image/pgadmin.png)
+![pgadmin](image/pgadmin.png)
 
 ## 5. Проверка сохранности данных
 
@@ -120,13 +120,13 @@ docker run --name pg-server \
   -c listen_addresses='*'
 ```
 
-![docker_run2](HW-02/image/docker_run3.png)
+![docker_run2](image/docker_run3.png)
 
 #### 5.3 Проверяем данные
 ```bash
 docker run --rm -it --network host -e PGPASSWORD=secret postgres:17 psql -h localhost -U postgres -c "SELECT * FROM shipments;"
 ```
 
-![psql_client](HW-02/image/psql_client2.png)
+![psql_client](image/psql_client2.png)
 
 
