@@ -39,9 +39,9 @@ docker run --name pg-server \
 
 #### 2.3 Смотрим, что контейнер запустился
 ```bash
-docker ps
+docker ps -a
 ```
-![Состояние докера](/image/docker_run.png)
+![Состояние докера](image/docker_run.png)
 
 ## 3. Создание и наполнение таблицы (через клиент)
 
