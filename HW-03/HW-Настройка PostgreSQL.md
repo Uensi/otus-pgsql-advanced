@@ -62,10 +62,6 @@ mkdir -p /mnt/pg_data/
 #### 3.2 Смотрим все диски и создаем раздел
 ```bash
 lsblk
-```
-![Диск](image/disk.png)
-
-```bash
 parted -s /dev/sdb mklabel gpt mkpart primary 0% 100% set 1 lvm on
 pvcreate /dev/sdb1 && vgcreate vg_db /dev/sdb1 && lvcreate -l 100%FREE -n lv_db vg_db
 mkfs.ext4 /dev/vg_db/lv_db
