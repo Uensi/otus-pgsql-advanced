@@ -17,7 +17,7 @@ postgresql-18-setup initdb
 systemctl enable postgresql-18.service --now
 systemctl status postgresql-18.service
 ```
-![Установка postgresql](HW-03/image/install_postgresql.png)
+![Установка postgresql](/image/install_postgresql.png)
 
 ## 2. Создаем таблицы с данными о перевозках
 
@@ -51,7 +51,7 @@ INSERT INTO shipments (cargo_type, weight_kg, destination) VALUES
 SELECT * FROM shipments;
 ```
 
-![Создание таблиц](HW-03/image/insert_table.png)
+![Создание таблиц](/image/insert_table.png)
 
 ## 3. Добавление внешнего диска
 
@@ -63,7 +63,7 @@ mkdir -p /mnt/pg_data/
 ```bash
 lsblk
 ```
-![Диск](HW-03/image/disk.png)
+![Диск](/image/disk.png)
 
 ```bash
 parted -s /dev/sdb mklabel gpt mkpart primary 0% 100% set 1 lvm on
@@ -73,7 +73,7 @@ echo "UUID=$(sudo blkid -s UUID -o value /dev/mapper/vg_db-lv_db) /mnt/pg_data e
 systemctl daemon-reload
 mount /var/lib/pgsql
 ```
-![LVM](HW-03/image/lvm.png)
+![LVM](/image/lvm.png)
 
 #### 3.3 Даем права на смонтированный каталог пользователю postgres
 ```bash
@@ -95,13 +95,13 @@ mkdir -p /mnt/pg_data/data
 ```bash
 cp -rp /var/lib/pgsql/18/data/* /mnt/pg_data/data
 ```
-![Новая БД](HW-03/image/new_basa.png)
+![Новая БД](/image/new_basa.png)
 
 #### 4.4 Переименовываем старую БД
 ```bash
 mv /var/lib/pgsql/18/data /var/lib/pgsql/18/data.backup
 ```
-![Бэкап](HW-03/image/renamedbd.png)
+![Бэкап](/image/renamedbd.png)
 
 #### 4.5 Самый простой способ, создаем символическую ссылку на новый каталог с БД и даем права на каталог
 ```bash
@@ -116,13 +116,13 @@ chmod 700 /var/lib/pgsql/18/data
 systemctl start postgresql-18
 df -h /var/lib/pgsql/18/data
 ```
-![ext](HW-03/image/externalBD.png)
+![ext](/image/externalBD.png)
 
 ## 6. Проверка данных через консоль
 ```bash
 sudo -u postgres psql -d transport -c 'SELECT * FROM shipments;'
 ```
-![Проверка](HW-03/image/worked.png)
+![Проверка](/image/worked.png)
 
 
 ## 6. Перенос БД через конфиграцию в файле postgresql.conf (data_directory)
@@ -136,14 +136,14 @@ systemctl stop postgresql-18.service
 rm -rf /var/lib/pgsql/18/data
 mv /var/lib/pgsql/18/data.backup /var/lib/pgsql/18/data
 ```
-![Другой способ](HW-03/image/sposob2.png)
+![Другой способ](/image/sposob2.png)
 
 
 #### 6.2 Прописываем в конфиг файле новый каталог с БД на внешний диск
 ```bash
 nano /var/lib/pgsql/18/data/postgresql.conf
 ```
-![Конфиг](HW-03/image/config.png)
+![Конфиг](/image/config.png)
 
 ## 7. Запуск и проверка
 ```bash
@@ -151,7 +151,7 @@ systemctl start postgresql-18
 systemctl status postgresql-18
 sudo -u postgres psql -d postgres -c "SHOW data_directory;"
 ```
-![Проверка](HW-03/image/directory.png)
+![Проверка](/image/directory.png)
 
 ## 8. Проверка данных через консоль
 ```bash
