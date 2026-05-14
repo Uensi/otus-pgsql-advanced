@@ -131,7 +131,7 @@ sudo -u postgres psql -d transport -c 'SELECT * FROM shipments;'
 ```bash
 systemctl stop postgresql-18.service
 ```
-#### 6.1 Возвращаем каталог с бэкапов БД назад и удаляем символьную ссылку
+#### 6.1 Возвращаем каталог с бэкапом БД назад и удаляем символьную ссылку
 ```bash
 rm -rf /var/lib/pgsql/18/data
 mv /var/lib/pgsql/18/data.backup /var/lib/pgsql/18/data
