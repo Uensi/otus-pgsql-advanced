@@ -5,89 +5,97 @@
 - **Дата выполнения:** 2026-05-19
 - **Версия PostgreSQL:** 18
 
-### Установка и настройка etcd на сервере (etcd)
+### 1. Установка и настройка etcd и patroni на node1
 
-* Устанавливаем etcd:
+#### 1.1 Устанавливаем etcd:
 
 ```
 dnf install etcd
 ```
 
+* Создаем каталоги для запуска etcd:
+```
+mkdir -p /etc/etcd
+chown -R etcd: /etc/etcd/
+touch /var/log/etcd.log
+chown etcd: /var/log/etcd.log
+mkdir -p /var/lib/etcd/default.etcd/
+chown -R etcd: /var/lib/etcd/
+```
+
 * Настраиваем конфигурацию etcd:
 
 ```
-nano /etc/etcd/etcd.conf
+nano /etc/etcd/etcd.yaml
 ```
 
 * Изменяем конфигурацию следующим образом
 
 ```
-# [member]
-ETCD_NAME=etcd-03
-ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
-#ETCD_WAL_DIR=""
-#ETCD_SNAPSHOT_COUNT="10000"
-ETCD_HEARTBEAT_INTERVAL="1000"
-ETCD_ELECTION_TIMEOUT="5000"
-ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
-ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"
-#ETCD_MAX_SNAPSHOTS="5"
-#ETCD_MAX_WALS="5"
-#ETCD_CORS=""
-#
-#[cluster]
-ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.65.93.187:2380"
-# if you use different ETCD_NAME (e.g. test), set ETCD_INITIAL_CLUSTER value for this name, i.e. "test=http://..."
-ETCD_INITIAL_CLUSTER="etcd-03=http://10.65.93.187:2380"
-ETCD_INITIAL_CLUSTER_STATE="new"
-ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
-ETCD_ADVERTISE_CLIENT_URLS="http://10.65.93.187:2379"
-#ETCD_ENABLE_V2="true"
-#ETCD_DISCOVERY=""
-#ETCD_DISCOVERY_SRV=""
-#ETCD_DISCOVERY_FALLBACK="proxy"
-#ETCD_DISCOVERY_PROXY=""
-#ETCD_STRICT_RECONFIG_CHECK="false"
-#ETCD_AUTO_COMPACTION_RETENTION="0"
-#
-#[proxy]
-#ETCD_PROXY="off"
-#ETCD_PROXY_FAILURE_WAIT="5000"
-#ETCD_PROXY_REFRESH_INTERVAL="30000"
-#ETCD_PROXY_DIAL_TIMEOUT="1000"
-#ETCD_PROXY_WRITE_TIMEOUT="5000"
-#ETCD_PROXY_READ_TIMEOUT="0"
-#
-#[security]
-#ETCD_CERT_FILE=""
-#ETCD_KEY_FILE=""
-#ETCD_CLIENT_CERT_AUTH="false"
-#ETCD_TRUSTED_CA_FILE=""
-#ETCD_AUTO_TLS="false"
-#ETCD_PEER_CERT_FILE=""
-#ETCD_PEER_KEY_FILE=""
-#ETCD_PEER_CLIENT_CERT_AUTH="false"
-#ETCD_PEER_TRUSTED_CA_FILE=""
-#ETCD_PEER_AUTO_TLS="false"
-#
-#[logging]
-#ETCD_DEBUG="false"
-# examples for -log-package-levels etcdserver=WARNING,security=DEBUG
-#ETCD_LOG_PACKAGE_LEVELS=""
+# /etc/etcd/etcd.yaml
+
+name: node1
+data-dir: /var/lib/etcd/default.etcd
+heartbeat-interval: 1000
+election-timeout: 5000
+
+listen-peer-urls: http://0.0.0.0:2380
+listen-client-urls: http://0.0.0.0:2379
+
+initial-advertise-peer-urls: http://10.65.93.125:2380
+advertise-client-urls: http://10.65.93.125:2379
+
+initial-cluster: "node1=http://10.65.93.125:2380"
+initial-cluster-state: new
+initial-cluster-token: pg_cluster
+
+# Логирование
+log-level: info
+log-outputs: ["/var/log/etcd.log"]
+```
+
+* Вносим корректировки в службу службу etcd:
+
+```
+nano /usr/lib/systemd/system/etcd.service
+```
+
+```
+# /usr/lib/systemd/system/etcd.service
+
+[Unit]
+Description=etcd
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/etcd --config-file=/etc/etcd/etcd.yaml
+Restart=always
+RestartSec=5
+User=etcd
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+```
+
+systemctl daemon-reload
 ```
 
 * Запускаем службу etcd:
 
 ```
 systemctl start etcd.service
+systemctl enable etcd
 ```
 
-### Установка PostgreSQL (на node1)
+#### 1.2 Установка PostgreSQL
 
 * Устанавливаем PostgreSQL и модули:
 
 ```
-dnf install postgresql8 postgresql18-contrib
+dnf install postgresql18 postgresql18-contrib
 ```
 
 #### *Внимание!!! После установки Postgresql не нужно запускать и инициализировать БД, также нужно отключить автозапуск службы:*
@@ -96,7 +104,7 @@ dnf install postgresql8 postgresql18-contrib
 systemctl disable postgresql-18.service
 ```
 
-### Установка Python (node1)
+#### 1.3 Установка Python
 
 * Устанавливаем Python с необходимыми зависимостями:
 
@@ -110,7 +118,7 @@ dnf install python3-pip python3-devel libpq-devel gcc
 pip3 install --upgrade pip
 ```
 
-### Установка Patroni (node1)
+#### 1.4 Установка Patroni 
 
 * Установка Patroni и библиотек
 
@@ -120,7 +128,7 @@ pip3 install --upgrade pip
 /usr/local/bin/pip install psycopg2
 ```
 
-### Настройка Patroni (node1)
+#### 1.5 Настройка Patroni
 
 * Создаем каталог для конфигурации Patroni и файл patroni.yml:
 
@@ -129,7 +137,7 @@ mkdir /etc/patroni/
 nano /etc/patroni/patroni.yml
 ```
 
-* Вставляем следующую конфигурацию (ip address будет у вас свой), Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
+* Вставляем следующую конфигурацию. Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
 
 ```
 scope: postgres_db_cluster
@@ -150,13 +158,13 @@ log:
 
 restapi:
   listen: 0.0.0.0:8008
-  connect_address: 10.65.93.171:8008
+  connect_address: 10.65.93.125:8008
 
 etcd3:
   hosts:
-#  - 10.65.93.171:2379
-#  - 10.65.93.136:2379
-  - 10.65.93.187:2379
+  - 10.65.93.125:2379
+#  - 10.65.93.102:2379
+#  - 10.65.93.103:2379
 
 bootstrap:
   dcs:
@@ -167,17 +175,13 @@ bootstrap:
     synchronous_mode: true
     synchronous_mode_strict: false
     postgresql:
-#      recovery_conf:
-#        restore_command: /usr/local/bin/restore_wal.sh %p %f
-#        recovery_target_time: '2021-06-11 13:20:00'
-#        recovery_target_action: promote
       use_pg_rewind: true
       use_slots: true
       parameters:
         max_connections: 200
-        shared_buffers: 2GB
-        effective_cache_size: 6GB
-        maintenance_work_mem: 512MB
+        shared_buffers: 1GB
+        effective_cache_size: 3GB
+        maintenance_work_mem: 256MB
         checkpoint_completion_target: 0.7
         wal_buffers: 16MB
         default_statistics_target: 100
@@ -185,12 +189,10 @@ bootstrap:
         effective_io_concurrency: 200
         work_mem: 2621kB
         min_wal_size: 1GB
-        max_wal_size: 4GB
         max_worker_processes: 40
         max_parallel_workers_per_gather: 4
         max_parallel_workers: 40
         max_parallel_maintenance_workers: 4
-
         max_locks_per_transaction: 64
         max_prepared_transactions: 0
         wal_level: replica
@@ -242,7 +244,7 @@ users:
 
 postgresql:
   listen: 0.0.0.0:5432
-  connect_address: 10.65.93.171:5432
+  connect_address: 10.65.93.125:5432
   data_dir: /var/lib/pgsql/18/data/
   bin_dir: /usr/pgsql-18/bin/
   config_dir: /var/lib/pgsql/18/data/
@@ -259,9 +261,6 @@ postgresql:
       username: postgres
       password: 1qaz!QAZ
   parameters:
-    #archive_mode: on
-    #archive_command: /usr/local/bin/copy_wal.sh %p %f
-    #archive_timeout: 600
     unix_socket_directories: '/var/run/postgresql'
     port: 5432
 
@@ -285,7 +284,13 @@ mkdir /var/log/patroni
 chown -R postgres: /var/log/patroni
 ```
 
-### Создаем сервис patroni (node1)
+#### 1.6 Добавляем в кворум (etcd) нового члена
+```
+etcdctl member add node2 --peer-urls=http://10.65.93.102:2380
+```
+![etcd1](image/etcd1.png)
+
+#### 1.7 Создаем сервис patroni
 
 * Создаем файл сервиса systemd для Patroni:
 
@@ -334,14 +339,102 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](image/patroni.png)
+![node1](image/patroni1.png)
 
-### Установка PostgreSQL (на node2)
+### 2. Установка и настройка etcd и patroni на node2
+
+#### 2.1 Устанавливаем etcd:
+
+```
+dnf install etcd
+```
+
+* Создаем каталоги для запуска etcd:
+```
+mkdir -p /etc/etcd
+chown -R etcd: /etc/etcd/
+touch /var/log/etcd.log
+chown etcd: /var/log/etcd.log
+mkdir -p /var/lib/etcd/default.etcd/
+chown -R etcd: /var/lib/etcd/
+```
+
+* Настраиваем конфигурацию etcd:
+
+```
+nano /etc/etcd/etcd.yaml
+```
+
+* Изменяем конфигурацию следующим образом
+
+```
+# /etc/etcd/etcd.yaml
+
+name: node2
+data-dir: /var/lib/etcd/default.etcd
+heartbeat-interval: 1000
+election-timeout: 5000
+
+listen-peer-urls: http://0.0.0.0:2380
+listen-client-urls: http://0.0.0.0:2379
+
+initial-advertise-peer-urls: http://10.65.93.102:2380
+advertise-client-urls: http://10.65.93.102:2379
+
+initial-cluster: ""node1=http://10.65.93.125:2380,node2=http://10.65.93.102:2380""
+initial-cluster-state: existing
+initial-cluster-token: pg_cluster
+
+# Логирование
+log-level: info
+log-outputs: ["/var/log/etcd.log"]
+```
+
+* Вносим корректировки в службу службу etcd:
+
+```
+nano /usr/lib/systemd/system/etcd.service
+```
+
+```
+# /usr/lib/systemd/system/etcd.service
+
+[Unit]
+Description=etcd
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/etcd --config-file=/etc/etcd/etcd.yaml
+Restart=always
+RestartSec=5
+User=etcd
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+```
+
+systemctl daemon-reload
+```
+
+* Запускаем службу etcd:
+
+```
+systemctl start etcd.service
+systemctl enable etcd 
+etcdctl member list --> # Посмотреть членов кворума
+```
+![etcd](image/etcd2.png)
+
+
+#### 2.2 Установка PostgreSQL
 
 * Устанавливаем PostgreSQL и модули:
 
 ```
-dnf install postgresql8 postgresql18-contrib
+dnf install postgresql18 postgresql18-contrib
 ```
 
 #### *Внимание!!! После установки Postgresql не нужно запускать и инициализировать БД, также нужно отключить автозапуск службы:*
@@ -350,7 +443,7 @@ dnf install postgresql8 postgresql18-contrib
 systemctl disable postgresql-18.service
 ```
 
-### Установка Python (node2)
+#### 2.3 Установка Python
 
 * Устанавливаем Python с необходимыми зависимостями:
 
@@ -364,9 +457,9 @@ dnf install python3-pip python3-devel libpq-devel gcc
 pip3 install --upgrade pip
 ```
 
-### Установка Patroni (node2)
+#### 2.4 Установка Patroni 
 
-* Установка Patroni и библиотек:
+* Установка Patroni и библиотек
 
 ```
 /usr/local/bin/pip install patroni
@@ -374,7 +467,7 @@ pip3 install --upgrade pip
 /usr/local/bin/pip install psycopg2
 ```
 
-### Настройка Patroni (node2)
+#### 2.5 Настройка Patroni
 
 * Создаем каталог для конфигурации Patroni и файл patroni.yml:
 
@@ -383,7 +476,7 @@ mkdir /etc/patroni/
 nano /etc/patroni/patroni.yml
 ```
 
-* Вставляем следующую конфигурацию, Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
+* Вставляем следующую конфигурацию. Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
 
 ```
 scope: postgres_db_cluster
@@ -404,13 +497,13 @@ log:
 
 restapi:
   listen: 0.0.0.0:8008
-  connect_address: 10.65.93.136:8008
+  connect_address: 10.65.93.102:8008
 
 etcd3:
   hosts:
-#  - 10.65.93.171:2379
-#  - 10.65.93.136:2379
-  - 10.65.93.187:2379
+  - 10.65.93.102:2379
+  - 10.65.93.125:2379
+#  - 10.65.93.103:2379
 
 bootstrap:
   dcs:
@@ -421,17 +514,13 @@ bootstrap:
     synchronous_mode: true
     synchronous_mode_strict: false
     postgresql:
-#      recovery_conf:
-#        restore_command: /usr/local/bin/restore_wal.sh %p %f
-#        recovery_target_time: '2026-05-19 13:20:00'
-#        recovery_target_action: promote
       use_pg_rewind: true
       use_slots: true
       parameters:
         max_connections: 200
-        shared_buffers: 2GB
-        effective_cache_size: 6GB
-        maintenance_work_mem: 512MB
+        shared_buffers: 1GB
+        effective_cache_size: 3GB
+        maintenance_work_mem: 256MB
         checkpoint_completion_target: 0.7
         wal_buffers: 16MB
         default_statistics_target: 100
@@ -439,12 +528,10 @@ bootstrap:
         effective_io_concurrency: 200
         work_mem: 2621kB
         min_wal_size: 1GB
-        max_wal_size: 4GB
         max_worker_processes: 40
         max_parallel_workers_per_gather: 4
         max_parallel_workers: 40
         max_parallel_maintenance_workers: 4
-
         max_locks_per_transaction: 64
         max_prepared_transactions: 0
         wal_level: replica
@@ -496,7 +583,7 @@ users:
 
 postgresql:
   listen: 0.0.0.0:5432
-  connect_address: 10.65.93.136:5432
+  connect_address: 10.65.93.102:5432
   data_dir: /var/lib/pgsql/18/data/
   bin_dir: /usr/pgsql-18/bin/
   config_dir: /var/lib/pgsql/18/data/
@@ -513,9 +600,6 @@ postgresql:
       username: postgres
       password: 1qaz!QAZ
   parameters:
-    #archive_mode: on
-    #archive_command: /usr/local/bin/copy_wal.sh %p %f
-    #archive_timeout: 600
     unix_socket_directories: '/var/run/postgresql'
     port: 5432
 
@@ -524,6 +608,7 @@ tags:
     noloadbalance: false
     clonefrom: false
     nosync: false
+
 ```
 
 * Создаем каталог для логирования patroni
@@ -538,7 +623,13 @@ mkdir /var/log/patroni
 chown -R postgres: /var/log/patroni
 ```
 
-### Создаем сервис patroni (node2)
+#### 2.6 Добавляем в кворум (etcd) нового члена
+```
+etcdctl member add node3 --peer-urls=http://10.65.93.103:2380
+```
+![etcd1](image/etcd4.png)
+
+#### 2.7 Создаем сервис patroni
 
 * Создаем файл сервиса systemd для Patroni:
 
@@ -564,6 +655,7 @@ Restart=no
 
 [Install]
 WantedBy=multi-user.target
+
 ```
 
 * Перезагружаем демона systemd:
@@ -586,344 +678,97 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](image/patroni2.png)
+![node1](image/patroni2.png)
 
-#### *Отлично, все работает как нужно, но нет отказоустойчивости, если сервер etcd будет не доступен, кластер не поймет на кого переключаться. Проверим (отключим сервер etcd)*
+### 3. Установка и настройка etcd и patroni на node3
 
-* Для теста отключим сервис etcd
-
-```
-systemctl stop etcd.service
-```
-
-* Теперь когда мы запросим список серверов
-
-```
-/usr/local/bin/patronictl -c /etc/patroni/patroni.yml list
-```
-
-* Мы получим такую картину (пример)
-
-![image.png](image/patroni3.png)
-
-### Поднимем отказоустойчивый кластер
-
-### На сервере etcd добавляем новый узел (etcd):
-
-* Добавляем новый узел в etcd:
-
-```
-etcdctl member add etcd-01 --peer-urls=http://10.65.93.171:2380
-```
-
-### Поднимаем etcd на (node1):
-
-* Устанавливаем etcd:
+#### 3.1 Устанавливаем etcd:
 
 ```
 dnf install etcd
 ```
 
+* Создаем каталоги для запуска etcd:
+```
+mkdir -p /etc/etcd
+chown -R etcd: /etc/etcd/
+touch /var/log/etcd.log
+chown etcd: /var/log/etcd.log
+mkdir -p /var/lib/etcd/default.etcd/
+chown -R etcd: /var/lib/etcd/
+```
+
 * Настраиваем конфигурацию etcd:
 
 ```
-nano /etc/etcd/etcd.conf
+nano /etc/etcd/etcd.yaml
 ```
 
 * Изменяем конфигурацию следующим образом
 
 ```
-# [member]
-ETCD_NAME=etcd-01
-ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
-#ETCD_WAL_DIR=""
-#ETCD_SNAPSHOT_COUNT="10000"
-ETCD_HEARTBEAT_INTERVAL="2000"
-ETCD_ELECTION_TIMEOUT="10000"
-ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
-ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"
-#ETCD_MAX_SNAPSHOTS="5"
-#ETCD_MAX_WALS="5"
-#ETCD_CORS=""
-#
-#[cluster]
-ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.65.93.171:2380"
-# if you use different ETCD_NAME (e.g. test), set ETCD_INITIAL_CLUSTER value for this name, i.e. "test=http://..."
-ETCD_INITIAL_CLUSTER="etcd-01=http://10.65.93.171:2380,etcd-03=http://10.65.93.187:2380"
-ETCD_INITIAL_CLUSTER_STATE="existing"
-ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
-ETCD_ADVERTISE_CLIENT_URLS="http://10.65.93.171:2379"
-#ETCD_ENABLE_V2="true"
-#ETCD_DISCOVERY=""
-#ETCD_DISCOVERY_SRV=""
-#ETCD_DISCOVERY_FALLBACK="proxy"
-#ETCD_DISCOVERY_PROXY=""
-#ETCD_STRICT_RECONFIG_CHECK="false"
-#ETCD_AUTO_COMPACTION_RETENTION="0"
-#
-#[proxy]
-#ETCD_PROXY="off"
-#ETCD_PROXY_FAILURE_WAIT="5000"
-#ETCD_PROXY_REFRESH_INTERVAL="30000"
-#ETCD_PROXY_DIAL_TIMEOUT="1000"
-#ETCD_PROXY_WRITE_TIMEOUT="5000"
-#ETCD_PROXY_READ_TIMEOUT="0"
-#
-#[security]
-#ETCD_CERT_FILE=""
-#ETCD_KEY_FILE=""
-#ETCD_CLIENT_CERT_AUTH="false"
-#ETCD_TRUSTED_CA_FILE=""
-#ETCD_AUTO_TLS="false"
-#ETCD_PEER_CERT_FILE=""
-#ETCD_PEER_KEY_FILE=""
-#ETCD_PEER_CLIENT_CERT_AUTH="false"
-#ETCD_PEER_TRUSTED_CA_FILE=""
-#ETCD_PEER_AUTO_TLS="false"
-#
-#[logging]
-#ETCD_DEBUG="false"
-# examples for -log-package-levels etcdserver=WARNING,security=DEBUG
-#ETCD_LOG_PACKAGE_LEVELS=""
+# /etc/etcd/etcd.yaml
+
+name: node3
+data-dir: /var/lib/etcd/default.etcd
+heartbeat-interval: 1000
+election-timeout: 5000
+
+listen-peer-urls: http://0.0.0.0:2380
+listen-client-urls: http://0.0.0.0:2379
+
+initial-advertise-peer-urls: http://10.65.93.103:2380
+advertise-client-urls: http://10.65.93.103:2379
+
+initial-cluster: "node1=http://10.65.93.125:2380,node2=http://10.65.93.102:2380,node3=http://10.65.93.103:2380"
+initial-cluster-state: existing
+initial-cluster-token: pg_cluster
+
+# Логирование
+log-level: info
+log-outputs: ["/var/log/etcd.log"]
 ```
 
-* Запускаем службу etcd
+* Вносим корректировки в службу службу etcd:
+
+```
+nano /usr/lib/systemd/system/etcd.service
+```
+
+```
+# /usr/lib/systemd/system/etcd.service
+
+[Unit]
+Description=etcd
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/etcd --config-file=/etc/etcd/etcd.yaml
+Restart=always
+RestartSec=5
+User=etcd
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+```
+
+systemctl daemon-reload
+```
+
+* Запускаем службу etcd:
 
 ```
 systemctl start etcd.service
+systemctl enable etcd 
+etcdctl member list --> # Посмотреть членов кворума
 ```
+![etcd](image/etcd2.png)
 
-* Добавляем в автозагрузку службу
 
-```
-systemctl enable etcd.service
-```
-
-### Настраиваем Patroni (node1)
-
-* Раскомментируем строчки в patroni.yml:
-
-```
-nano /etc/patroni/patroni.yml
-```
-
-* В блоке etcd раскомментируем строчки:
-
-```
-etcd:
-  hosts:
-  - 10.65.93.171:2379 # раскомментировали
-  - 10.65.93.136:2379 # раскомментировали
-  - 10.65.93.187:2379
-```
-
-#### *Службу patroni пока не запускаем!*
-
-### На сервере etcd добавляем новый узел (etcd):
-
-* Добавляем новый узел в etcd:
-
-```
-etcdctl member add etcd-02 --peer-urls=http://10.65.93.136:2380
-```
-
-### Поднимаем etcd на (node2):
-
-* Устанавливаем etcd:
-
-```
-dnf install etcd
-```
-
-* Настраиваем конфигурацию etcd:
-
-```
-nano /etc/etcd/etcd.conf
-```
-
-* Изменяем конфигурацию следующим образом (как пример взят из тестового контура (ip address у вас свой))
-
-```
-# [member]
-ETCD_NAME=etcd-02
-ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
-#ETCD_WAL_DIR=""
-#ETCD_SNAPSHOT_COUNT="10000"
-ETCD_HEARTBEAT_INTERVAL="2000"
-ETCD_ELECTION_TIMEOUT="10000"
-ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
-ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"
-#ETCD_MAX_SNAPSHOTS="5"
-#ETCD_MAX_WALS="5"
-#ETCD_CORS=""
-#
-#[cluster]
-ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.65.93.136:2380"
-# if you use different ETCD_NAME (e.g. test), set ETCD_INITIAL_CLUSTER value for this name, i.e. "test=http://..."
-ETCD_INITIAL_CLUSTER="etcd-01=http://10.65.93.171:2380,etcd-02=http://10.65.93.136:2380,etcd-03=http://10.65.93.187:2380"
-ETCD_INITIAL_CLUSTER_STATE="existing"
-ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
-ETCD_ADVERTISE_CLIENT_URLS="http://10.65.93.136:2379"
-#ETCD_ENABLE_V2="true"
-#ETCD_DISCOVERY=""
-#ETCD_DISCOVERY_SRV=""
-#ETCD_DISCOVERY_FALLBACK="proxy"
-#ETCD_DISCOVERY_PROXY=""
-#ETCD_STRICT_RECONFIG_CHECK="false"
-#ETCD_AUTO_COMPACTION_RETENTION="0"
-#
-#[proxy]
-#ETCD_PROXY="off"
-#ETCD_PROXY_FAILURE_WAIT="5000"
-#ETCD_PROXY_REFRESH_INTERVAL="30000"
-#ETCD_PROXY_DIAL_TIMEOUT="1000"
-#ETCD_PROXY_WRITE_TIMEOUT="5000"
-#ETCD_PROXY_READ_TIMEOUT="0"
-#
-#[security]
-#ETCD_CERT_FILE=""
-#ETCD_KEY_FILE=""
-#ETCD_CLIENT_CERT_AUTH="false"
-#ETCD_TRUSTED_CA_FILE=""
-#ETCD_AUTO_TLS="false"
-#ETCD_PEER_CERT_FILE=""
-#ETCD_PEER_KEY_FILE=""
-#ETCD_PEER_CLIENT_CERT_AUTH="false"
-#ETCD_PEER_TRUSTED_CA_FILE=""
-#ETCD_PEER_AUTO_TLS="false"
-#
-#[logging]
-#ETCD_DEBUG="false"
-# examples for -log-package-levels etcdserver=WARNING,security=DEBUG
-#ETCD_LOG_PACKAGE_LEVELS=""
-```
-
-* Запускаем службу etcd
-
-```
-systemctl start etcd.service
-```
-
-* Добавляем в автозагрузку службу
-
-```
-systemctl enable etcd.service
-```
-
-### Настраиваем Patroni (node2)
-
-* Раскомментируем строчки в patroni.yml:
-
-```
-nano /etc/patroni/patroni.yml
-```
-
-* В блоке etcd раскомментируем строчки:
-
-```
-etcd:
-  hosts:
-  - 10.65.93.171:2379 # раскомментировали
-  - 10.65.93.136:2379 # раскомментировали
-  - 10.65.93.187:2379
-```
-
-#### *Службу patroni пока не запускаем!*
-
-### На на сервере etcd (etcd):
-
-* конфигурацию etcd:
-
-```
-# [member]
-ETCD_NAME=etcd-03
-ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
-#ETCD_WAL_DIR=""
-#ETCD_SNAPSHOT_COUNT="10000"
-ETCD_HEARTBEAT_INTERVAL="2000"
-ETCD_ELECTION_TIMEOUT="10000"
-ETCD_LISTEN_PEER_URLS="http://0.0.0.0:2380"
-ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"
-#ETCD_MAX_SNAPSHOTS="5"
-#ETCD_MAX_WALS="5"
-#ETCD_CORS=""
-#
-#[cluster]
-ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.65.93.187:2380"
-# if you use different ETCD_NAME (e.g. test), set ETCD_INITIAL_CLUSTER value for this name, i.e. "test=http://..."
-ETCD_INITIAL_CLUSTER="etcd-01=http://10.65.93.171:2380,etcd-02=http://10.65.93.136:2380,etcd-03=http://10.65.93.187:2380"
-ETCD_INITIAL_CLUSTER_STATE="existing"
-ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
-ETCD_ADVERTISE_CLIENT_URLS="http://10.65.93.187:2379"
-ETCD_ENABLE_V2="true"
-#ETCD_DISCOVERY=""
-#ETCD_DISCOVERY_SRV=""
-#ETCD_DISCOVERY_FALLBACK="proxy"
-#ETCD_DISCOVERY_PROXY=""
-#ETCD_STRICT_RECONFIG_CHECK="false"
-#ETCD_AUTO_COMPACTION_RETENTION="0"
-#
-#[proxy]
-#ETCD_PROXY="off"
-#ETCD_PROXY_FAILURE_WAIT="5000"
-#ETCD_PROXY_REFRESH_INTERVAL="30000"
-#ETCD_PROXY_DIAL_TIMEOUT="1000"
-#ETCD_PROXY_WRITE_TIMEOUT="5000"
-#ETCD_PROXY_READ_TIMEOUT="0"
-#
-#[security]
-#ETCD_CERT_FILE=""
-#ETCD_KEY_FILE=""
-#ETCD_CLIENT_CERT_AUTH="false"
-#ETCD_TRUSTED_CA_FILE=""
-#ETCD_AUTO_TLS="false"
-#ETCD_PEER_CERT_FILE=""
-#ETCD_PEER_KEY_FILE=""
-#ETCD_PEER_CLIENT_CERT_AUTH="false"
-#ETCD_PEER_TRUSTED_CA_FILE=""
-#ETCD_PEER_AUTO_TLS="false"
-#
-#[logging]
-#ETCD_DEBUG="false"
-# examples for -log-package-levels etcdserver=WARNING,security=DEBUG
-#ETCD_LOG_PACKAGE_LEVELS=""
-```
-
-* Запускаем службу etcd
-
-```
-systemctl start etcd.service
-```
-
-* Добавляем в автозагрузку службу
-
-```
-systemctl enable etcd.service
-```
-
-* На  сервер node 1 добавляем запись в etcd.conf:
-
-```
-ETCD_INITIAL_CLUSTER="etcd-01=http://10.65.93.171:2380,etcd-02=http://10.65.93.136:2380,etcd-03=http://10.65.93.187:2380"
-```
-
-* перезапускаем службу etcd на node 1
-
-```
-systemctl restart etcd.service
-```
-
-#### Теперь можно запускать Patroni на node1 и node2 *(Внимание, сначала нужно запускать ту node где он был leader !!!)*
-
-```
-systemctl start patroni.service
-```
-
-#### И после выше описанных действий у нас есть отказоустойчивый кластер на patroni и etcd
-
-### Бонус !!!  Добавление ноды patroni (node) в кластер (чтоб она никогда не была *master*)
-
-### На сервере node3 устанавливаем PostgreSQL
+#### 3.2 Установка PostgreSQL
 
 * Устанавливаем PostgreSQL и модули:
 
@@ -937,7 +782,7 @@ dnf install postgresql18 postgresql18-contrib
 systemctl disable postgresql-18.service
 ```
 
-### На сервере etcd устанавливаем Python
+#### 3.3 Установка Python
 
 * Устанавливаем Python с необходимыми зависимостями:
 
@@ -951,9 +796,9 @@ dnf install python3-pip python3-devel libpq-devel gcc
 pip3 install --upgrade pip
 ```
 
-### На сервере etcd устанавливаем Patroni
+#### 3.4 Установка Patroni 
 
-* Установка Patroni и библиотек:
+* Установка Patroni и библиотек
 
 ```
 /usr/local/bin/pip install patroni
@@ -961,7 +806,7 @@ pip3 install --upgrade pip
 /usr/local/bin/pip install psycopg2
 ```
 
-### Настройка Patroni (etcd)
+#### 3.5 Настройка Patroni
 
 * Создаем каталог для конфигурации Patroni и файл patroni.yml:
 
@@ -970,7 +815,7 @@ mkdir /etc/patroni/
 nano /etc/patroni/patroni.yml
 ```
 
-* Вставляем следующую конфигурацию
+* Вставляем следующую конфигурацию. Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
 
 ```
 scope: postgres_db_cluster
@@ -991,13 +836,13 @@ log:
 
 restapi:
   listen: 0.0.0.0:8008
-  connect_address: 10.65.93.187:8008
+  connect_address: 10.65.93.103:8008
 
 etcd3:
   hosts:
-  - 10.65.93.171:2379
-  - 10.65.93.136:2379
-  - 10.65.93.187:2379
+  - 10.65.93.102:2379
+  - 10.65.93.125:2379
+  - 10.65.93.103:2379
 
 bootstrap:
   dcs:
@@ -1008,17 +853,13 @@ bootstrap:
     synchronous_mode: true
     synchronous_mode_strict: false
     postgresql:
-#      recovery_conf:
-#        restore_command: /usr/local/bin/restore_wal.sh %p %f
-#        recovery_target_time: '2021-06-11 13:20:00'
-#        recovery_target_action: promote
       use_pg_rewind: true
       use_slots: true
       parameters:
         max_connections: 200
-        shared_buffers: 2GB
-        effective_cache_size: 6GB
-        maintenance_work_mem: 512MB
+        shared_buffers: 1GB
+        effective_cache_size: 3GB
+        maintenance_work_mem: 256MB
         checkpoint_completion_target: 0.7
         wal_buffers: 16MB
         default_statistics_target: 100
@@ -1026,12 +867,10 @@ bootstrap:
         effective_io_concurrency: 200
         work_mem: 2621kB
         min_wal_size: 1GB
-        max_wal_size: 4GB
         max_worker_processes: 40
         max_parallel_workers_per_gather: 4
         max_parallel_workers: 40
         max_parallel_maintenance_workers: 4
-
         max_locks_per_transaction: 64
         max_prepared_transactions: 0
         wal_level: replica
@@ -1083,14 +922,14 @@ users:
 
 postgresql:
   listen: 0.0.0.0:5432
-  connect_address: 10.65.93.187:5432
+  connect_address: 10.65.93.103:5432
   data_dir: /var/lib/pgsql/18/data/
   bin_dir: /usr/pgsql-18/bin/
   config_dir: /var/lib/pgsql/18/data/
   pgpass: /var/lib/pgsql/18/.pgpass
   pg_hba:
     - host all all 0.0.0.0/0 md5
-    - host replication replication 127.0.0.1/32 md5    
+    - host replication replication 127.0.0.1/32 md5
     - host replication replication 10.65.0.0/16 md5
   authentication:
     replication:
@@ -1100,17 +939,15 @@ postgresql:
       username: postgres
       password: 1qaz!QAZ
   parameters:
-    #archive_mode: on
-    #archive_command: /usr/local/bin/copy_wal.sh %p %f
-    #archive_timeout: 600
     unix_socket_directories: '/var/run/postgresql'
     port: 5432
 
 tags:
-    nofailover: true
-    noloadbalance: true
-    clonefrom: true
-    nosync: true
+    nofailover: false
+    noloadbalance: false
+    clonefrom: false
+    nosync: false
+
 ```
 
 * Создаем каталог для логирования patroni
@@ -1124,8 +961,13 @@ mkdir /var/log/patroni
 ```
 chown -R postgres: /var/log/patroni
 ```
+#### 3.6 Добавляем в кворум (etcd) нового члена
+```
+etcdctl member add node3 --peer-urls=http://10.65.93.103:2380
+```
+![etcd1](image/etcd4.png)
 
-### Создаем сервис patroni (etcd)
+#### 3.7 Создаем сервис patroni
 
 * Создаем файл сервиса systemd для Patroni:
 
@@ -1151,6 +993,7 @@ Restart=no
 
 [Install]
 WantedBy=multi-user.target
+
 ```
 
 * Перезагружаем демона systemd:
@@ -1173,38 +1016,34 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](image/patroni4.png)
+![node3](image/patroni3.png)
 
-#### *Отлично, все работает как нужно.*
+### 4. На всех кластерах в конфиге patroni нужно расскоментировать секцию etcd3 (hosts) и перезапустить службу patroni
 
-### Полезные команды
-
-rm -rf /var/lib/etcd/\* --\> удалить старую базу данных etcd
-etcdctl endpoint status --write-out=table --\> проверка лидера кластера
-etcdctl endpoint health --\> проверка целостности кластера
-etcdctl member list
-
-/usr/local/bin/patronictl -c /etc/patroni/patroni.yml switchover postgres-db-cluster --leader patroni-node-01 --candidate patroni-node-02 --force  переключение лидера
-
-/usr/local/bin/patronictl -c /etc/patroni/patroni.yml reinit postgres-db-cluster patroni-node-03 переинициализация БД
-
-### Установка haproxy на сервере (etcd)
-
-* Устанавливаем Haproxy
+![nodes](image/nodes.png)
 
 ```
-dnf isntall haproxy
+systemctl restart patroni
 ```
 
-* Редактируем конфигурационный файл haproxy.cfg
+* Отказоустойчивость работает
 
+![cluster](image/cluster.png)
+
+### 5. Установка и настройка haproxy на всех node
+
+#### 5.1 Устанавливаем haproxy
+```
+dnf install haproxy -y
+dnf install policycoreutils-python -y
+```
+
+#### 5.2 Приводим конфигрурационный файл к виду 
 ```
 nano /etc/haproxy/haproxy.cfg
 ```
-
-* Приводим его к такому виду
-
 ```
+# /etc/haproxy/haproxy.cfg
 global
     log         127.0.0.1 local0
     maxconn     3000
@@ -1215,64 +1054,57 @@ defaults
     log                     global
     retries                 2
     timeout queue           1m
-    timeout connect         5s
-    timeout client          30m
-    timeout server          30m
+    timeout connect         4s
+    timeout client          3m      # 180000 мс
+    timeout server          3m      # 180000 мс
     timeout check           5s
     maxconn                 3000
 
-listen stats
-    mode http
-    bind *:17000
-    stats enable
-    stats uri /
-    stats refresh 10s
-
-frontend postgres_write
-    bind *:15433
-    default_backend master_nodes
-
-frontend postgres_read
-    bind *:25433
-    default_backend replica_nodes
-
-backend master_nodes
+# --- ЕДИНАЯ ТОЧКА ВХОДА ДЛЯ ПРИЛОЖЕНИЯ ---
+listen postgres_cluster
+    bind *:6432
     mode tcp
+    # Проверяем API Patroni, чтобы найти мастера
     option httpchk GET /master
     http-check expect status 200
+    # Балансировка: первый живой сервер, прошедший проверку (то есть Мастер)
     balance first
+    # Параметры проверки серверов
     default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
-    server node3 10.65.200.53:5432 maxconn 3000 check port 8008
-    server node1 10.65.184.53:5432 maxconn 3000 check port 8008
-    server node2 10.65.192.53:5432 maxconn 3000 check port 8008
 
-backend replica_nodes
+    # Серверы кластера (порт 5432 для данных, проверка через порт 8008)
+    server node1 10.65.93.125:5432 maxconn 3000 check port 8008
+    server node2 10.65.93.102:5432 maxconn 3000 check port 8008
+    server node3 10.65.93.103:5432 maxconn 3000 check port 8008
+
+# --- СТРАНИЦА СТАТИСТИКИ (для админа) ---
+listen stats
+    mode http
+	bind *:17000
+    stats enable
+    stats uri /
+    stats refresh 5s
+
+# --- ДОСТУП К API PATRONI (для утилит, не для приложения) ---
+listen patroni_api
+    bind *:8888
     mode tcp
-    option httpchk GET /replica
-    http-check expect status 200
     balance roundrobin
-    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
-    server node1 10.65.184.53:5432 maxconn 3000 check port 8008
-    server node2 10.65.192.53:5432 maxconn 3000 check port 8008
-    server node3 10.65.200.53:5432 maxconn 3000 check port 8008
-```
+    server node1 10.65.93.125:8008 check
+    server node2 10.65.93.102:8008 check
+    server node3 10.65.93.103:8008 check
 
-* Генерируем исключения для selinux
-
+#### 5.3 Генерируем исключения для selinux
 ```
 ausearch -m avc -ts recent | audit2allow -M haproxy_shm
 semodule -i haproxy_shm.pp
+semanage port -a -t http_port_t -p tcp 6432
+semanage port -a -t http_port_t -p tcp 8888
 semanage port -a -t http_port_t -p tcp 17000
-semanage port -a -t http_port_t -p tcp 15433
-semanage port -a -t http_port_t -p tcp 25433
+semanage port -l | grep http_port_t
 ```
-
 * Запускаем службу haproxy
-
 ```
-systemctl start haproxy.service
+systemctl start haproxy
 ```
-
-* Теперь нам доступна статистика кластера по адресу http:/ip:17000
-
-![image.png](image/haproxy.png)
+![haproxy](image/haproxy.png)
