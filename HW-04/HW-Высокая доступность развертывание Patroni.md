@@ -87,13 +87,13 @@ systemctl start etcd.service
 * Устанавливаем PostgreSQL и модули:
 
 ```
-dnf install postgresql16-16.4-1.el7.x86_64 postgresql16-contrib-16.4-1.el7.x86_64
+dnf install postgresql8 postgresql18-contrib
 ```
 
 #### *Внимание!!! После установки Postgresql не нужно запускать и инициализировать БД, также нужно отключить автозапуск службы:*
 
 ```
-systemctl disable postgresql-16.service
+systemctl disable postgresql-18.service
 ```
 
 ### Установка Python (node1)
@@ -101,7 +101,7 @@ systemctl disable postgresql-16.service
 * Устанавливаем Python с необходимыми зависимостями:
 
 ```
-dnf install python3-pip-20.2.2-1.el7.noarch python3-devel-3.8.20-1.el7.x86_64 libpq-devel-15.0-2.el7.x86_64 gcc
+dnf install python3-pip python3-devel libpq-devel gcc
 ```
 
 * Обновляем pip:
@@ -243,10 +243,10 @@ users:
 postgresql:
   listen: 0.0.0.0:5432
   connect_address: 10.65.93.171:5432
-  data_dir: /var/lib/pgsql/16/data/
-  bin_dir: /usr/pgsql-16/bin/
-  config_dir: /var/lib/pgsql/16/data/
-  pgpass: /var/lib/pgsql/16/.pgpass
+  data_dir: /var/lib/pgsql/18/data/
+  bin_dir: /usr/pgsql-18/bin/
+  config_dir: /var/lib/pgsql/18/data/
+  pgpass: /var/lib/pgsql/18/.pgpass
   pg_hba:
     - host all all 0.0.0.0/0 md5
     - host replication replication 127.0.0.1/32 md5
@@ -334,20 +334,20 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](/homepage/katalog-it-servisov/ustanovka-klastera-bd-postgresql-na-baze-patroni/.files/image.png =x70)
+![image.png](image/patroni1.png)
 
 ### Установка PostgreSQL (на node2)
 
 * Устанавливаем PostgreSQL и модули:
 
 ```
-dnf install postgresql16-16.4-1.el7.x86_64 postgresql16-contrib-16.4-1.el7.x86_64
+dnf install postgresql8 postgresql18-contrib
 ```
 
 #### *Внимание!!! После установки Postgresql не нужно запускать и инициализировать БД, также нужно отключить автозапуск службы:*
 
 ```
-systemctl disable postgresql-16.service
+systemctl disable postgresql-18.service
 ```
 
 ### Установка Python (node2)
@@ -355,7 +355,7 @@ systemctl disable postgresql-16.service
 * Устанавливаем Python с необходимыми зависимостями:
 
 ```
-dnf install python3-pip-20.2.2-1.el7.noarch python3-devel-3.8.20-1.el7.x86_64 libpq-devel-15.0-2.el7.x86_64 gcc
+dnf install python3-pip python3-devel libpq-devel gcc
 ```
 
 * Обновляем pip:
@@ -383,7 +383,7 @@ mkdir /etc/patroni/
 nano /etc/patroni/patroni.yml
 ```
 
-* Вставляем следующую конфигурацию (ip address будет у вас свой), Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
+* Вставляем следующую конфигурацию, Конфигурация patroni.yml может отличаться в зависимости от настроек postgres.
 
 ```
 scope: postgres_db_cluster
@@ -423,7 +423,7 @@ bootstrap:
     postgresql:
 #      recovery_conf:
 #        restore_command: /usr/local/bin/restore_wal.sh %p %f
-#        recovery_target_time: '2021-06-11 13:20:00'
+#        recovery_target_time: '2026-05-19 13:20:00'
 #        recovery_target_action: promote
       use_pg_rewind: true
       use_slots: true
@@ -497,10 +497,10 @@ users:
 postgresql:
   listen: 0.0.0.0:5432
   connect_address: 10.65.93.136:5432
-  data_dir: /var/lib/pgsql/16/data/
-  bin_dir: /usr/pgsql-16/bin/
-  config_dir: /var/lib/pgsql/16/data/
-  pgpass: /var/lib/pgsql/16/.pgpass
+  data_dir: /var/lib/pgsql/18/data/
+  bin_dir: /usr/pgsql-18/bin/
+  config_dir: /var/lib/pgsql/18/data/
+  pgpass: /var/lib/pgsql/18/.pgpass
   pg_hba:
     - host all all 0.0.0.0/0 md5
     - host replication replication 127.0.0.1/32 md5
@@ -586,7 +586,7 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](/homepage/katalog-it-servisov/ustanovka-klastera-bd-postgresql-na-baze-patroni/.files/image-1.png =x131)
+![image.png](image/patroni2.png)
 
 #### *Отлично, все работает как нужно, но нет отказоустойчивости, если сервер etcd будет не доступен, кластер не поймет на кого переключаться. Проверим (отключим сервер etcd)*
 
@@ -604,7 +604,7 @@ systemctl stop etcd.service
 
 * Мы получим такую картину (пример)
 
-![image.png](/homepage/katalog-it-servisov/ustanovka-klastera-bd-postgresql-na-baze-patroni/.files/image-4.png =x256)
+![image.png](image/patroni3.png)
 
 ### Поднимем отказоустойчивый кластер
 
@@ -630,7 +630,7 @@ dnf install etcd
 nano /etc/etcd/etcd.conf
 ```
 
-* Изменяем конфигурацию следующим образом (как пример взят из тестового контура (ip address у вас свой))
+* Изменяем конфигурацию следующим образом
 
 ```
 # [member]
@@ -923,18 +923,18 @@ systemctl start patroni.service
 
 ### Бонус !!!  Добавление ноды patroni (node) в кластер (чтоб она никогда не была *master*)
 
-### На сервере etcd устанавливаем PostgreSQL
+### На сервере node3 устанавливаем PostgreSQL
 
 * Устанавливаем PostgreSQL и модули:
 
 ```
-dnf install postgresql16-16.4-1.el7.x86_64 postgresql16-contrib-16.4-1.el7.x86_64
+dnf install postgresql18 postgresql18-contrib
 ```
 
 #### *Внимание!!! После установки Postgresql не нужно запускать и инициализировать БД, также нужно отключить автозапуск службы:*
 
 ```
-systemctl disable postgresql-16.service
+systemctl disable postgresql-18.service
 ```
 
 ### На сервере etcd устанавливаем Python
@@ -942,7 +942,7 @@ systemctl disable postgresql-16.service
 * Устанавливаем Python с необходимыми зависимостями:
 
 ```
-dnf install python3-pip-20.2.2-1.el7.noarch python3-devel-3.8.20-1.el7.x86_64 libpq-devel-15.0-2.el7.x86_64 gcc
+dnf install python3-pip python3-devel libpq-devel gcc
 ```
 
 * Обновляем pip:
@@ -970,7 +970,7 @@ mkdir /etc/patroni/
 nano /etc/patroni/patroni.yml
 ```
 
-* Вставляем следующую конфигурацию (ip address будет у вас свой), Конфигурация patroni.yml может отличаться в зависимости от настроек postgres, какие вам нужны
+* Вставляем следующую конфигурацию
 
 ```
 scope: postgres_db_cluster
@@ -1084,10 +1084,10 @@ users:
 postgresql:
   listen: 0.0.0.0:5432
   connect_address: 10.65.93.187:5432
-  data_dir: /var/lib/pgsql/16/data/
-  bin_dir: /usr/pgsql-16/bin/
-  config_dir: /var/lib/pgsql/16/data/
-  pgpass: /var/lib/pgsql/16/.pgpass
+  data_dir: /var/lib/pgsql/18/data/
+  bin_dir: /usr/pgsql-18/bin/
+  config_dir: /var/lib/pgsql/18/data/
+  pgpass: /var/lib/pgsql/18/.pgpass
   pg_hba:
     - host all all 0.0.0.0/0 md5
     - host replication replication 127.0.0.1/32 md5    
@@ -1173,14 +1173,13 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](/homepage/katalog-it-servisov/ustanovka-klastera-bd-postgresql-na-baze-patroni/.files/image-5.png =x197)
+![image.png](image/patroni4.png)
 
 #### *Отлично, все работает как нужно.*
 
 ### Полезные команды
 
 rm -rf /var/lib/etcd/\* --\> удалить старую базу данных etcd
-etcdctl --endpoints=10.65.93.171:2379,10.65.93.136:2379,10.65.93.187:2379  endpoint status --\> посмотреть кто сейчас лидер кластера etcd
 etcdctl endpoint status --write-out=table --\> проверка лидера кластера
 etcdctl endpoint health --\> проверка целостности кластера
 etcdctl member list
@@ -1189,18 +1188,12 @@ etcdctl member list
 
 /usr/local/bin/patronictl -c /etc/patroni/patroni.yml reinit postgres-db-cluster patroni-node-03 переинициализация БД
 
-Обязательно в БД нужно сделать
-
-``` showLineNumbers
-CREATE TABLESPACE temptable LOCATION '/mnt/pg_tmp';
-```
-
 ### Установка haproxy на сервере (etcd)
 
 * Устанавливаем Haproxy
 
 ```
-dnf isntall haproxy-3.0.5-2.el7.x86_64
+dnf isntall haproxy
 ```
 
 * Редактируем конфигурационный файл haproxy.cfg
@@ -1282,4 +1275,4 @@ systemctl start haproxy.service
 
 * Теперь нам доступна статистика кластера по адресу http:/ip:17000
 
-![image.png](/homepage/katalog-it-servisov/ustanovka-klastera-bd-postgresql-na-baze-patroni/.files/image-6.png =x600)
+![image.png](image/haproxy.png)
