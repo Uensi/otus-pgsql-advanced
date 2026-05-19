@@ -334,7 +334,7 @@ systemctl start patroni
 
 * Должно быть примерно как на картинке:
 
-![image.png](image/patroni1.png)
+![image.png](image/patroni.png)
 
 ### Установка PostgreSQL (на node2)
 
