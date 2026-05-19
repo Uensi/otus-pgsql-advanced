@@ -1093,6 +1093,7 @@ listen patroni_api
     server node1 10.65.93.125:8008 check
     server node2 10.65.93.102:8008 check
     server node3 10.65.93.103:8008 check
+```
 
 #### 5.3 Генерируем исключения для selinux
 ```
