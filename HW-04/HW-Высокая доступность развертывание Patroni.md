@@ -965,7 +965,7 @@ chown -R postgres: /var/log/patroni
 ```
 etcdctl member add node3 --peer-urls=http://10.65.93.103:2380
 ```
-![etcd1](image/etcd4.png)
+![etcd1](image/etcd3.png)
 
 #### 3.7 Создаем сервис patroni
 
