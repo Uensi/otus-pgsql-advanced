@@ -1108,4 +1108,4 @@ semanage port -l | grep http_port_t
 systemctl start haproxy
 ```
 
-![haproxy](image/haproxy.png)
+![cluster](image/haproxy.png)
