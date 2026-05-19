@@ -765,7 +765,7 @@ systemctl start etcd.service
 systemctl enable etcd 
 etcdctl member list --> # Посмотреть членов кворума
 ```
-![etcd](image/etcd2.png)
+![etcd](image/etcd3.png)
 
 
 #### 3.2 Установка PostgreSQL
