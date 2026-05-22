@@ -166,6 +166,10 @@ sudo -u postgres pg_probackup-18 restore \
     -B /mnt/backup/pg_probackup \
     --instance postgres_db_cluster \
     -D /var/lib/pgsql/18/test_backup
+# Прописываем порт 
+echo "port = 5433" | sudo tee -a /var/lib/pgsql/18/data/postgresql.conf
+# Запускаем службу postgresql
+systemctl start postgresql18_test.service
 ```
 ![disk_backup](image/recovery.png)
 
