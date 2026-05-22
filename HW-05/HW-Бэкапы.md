@@ -72,14 +72,6 @@ sudo -u postgres pg_probackup-18 add-instance \
 
 ![replica](image/backup_disk.png)
 
-#### 4.1 Настраиваем файл с паролем для подключения
-```
-sudo -u postgres nano ~/.pgpass
-#
-localhost:5432:loyalty:backup:1qaz!QAZ
-sudo -u postgres chmod 600 ~/.pgpass
-```
-
 ### 5. Настраиваем WAL архивацию
 ```
 /usr/local/bin/patronictl -c /etc/patroni/patroni.yml edit-config
