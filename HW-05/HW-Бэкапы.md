@@ -29,7 +29,7 @@ systemctl enable nfs-server
 showmount -e localhost
 ```
 
-![disk_backup](image/etcd1.png)
+![disk_backup](image/disk.png)
 
 ### 2. Создаем тестовую базы и данные Лояльность оптовиков на клаcтере patroni 
 ```sql
