@@ -117,6 +117,7 @@ kubectl apply -f postgres-manifest.yaml
 ```
 
 ![kuber](image/kuber2.png)
+
 ![kuber](image/kuber3.png)
 
 * Открываем новую консоль для проброса порта postgresql
@@ -129,6 +130,7 @@ kubectl port-forward --address 0.0.0.0 service/postgres-svc 30007:5432
 * Проверяем простым Select работу БД
  
 ![db](image/db1.png)
+
 ![db](image/db2.png)
 
 
@@ -138,6 +140,7 @@ kubectl scale deployment postgres --replicas=3
 ```
 
 ![pod](image/pods.png)
+
 ![pod](image/pods1.png)
 
 ### 4. Разворачиваем через helm
@@ -177,7 +180,9 @@ secondary:
 helm install my-postgres oci://registry-1.docker.io/bitnamicharts/postgresql -f values.yaml
 ```
 ![helm](image/helm2.png)
+
 ![helm](image/helm3.png)
+
 ![helm](image/helm4.png)
 
 #### 4.4 Пробрасываем порт 
@@ -188,5 +193,7 @@ kubectl port-forward --address 0.0.0.0 svc/my-postgres-postgresql-primary 30007:
 * Проверяем простым Select работу БД
 
 ![db](image/db3.png)
+
 ![db](image/db4.png)
+
 ![db](image/db5.png)
