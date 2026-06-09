@@ -5,132 +5,188 @@
 - **Дата выполнения:** 2026-06-08
 - **Версия PostgreSQL:** 18
 
-### 1. Инициализация тестовой БД для pgbench
+### 1. Устанавливаем kubectl; minikube, helm, docker, psql
 ```
-# Переключение на пользователя postgres
-sudo -i -u postgres
-
-# Создание тестовой БД
-createdb -p 5433 pgbench_test
-
-# Инициализация с масштабным фактором 50 (~5 млн строк в accounts)
-/usr/pgsql-18/bin/pgbench -i -s 50 -p 5433 pgbench_test
-```
-
-![pgbench](image/pgbench.png)
-
-### 2. Запуск теста без оптимизации конфигурации СУБД
-```
-/usr/pgsql-18/bin/pgbench -c 50 -j 4 -T 120 -p 5433 pgbench_test
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.33/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.33/rpm/repodata/repomd.xml.key
+EOF
+dnf install -y kubectl
 ```
 
-![pgbench](image/pgbench1.png)
-
-* Базовый TPS: ~1314 транзакций в секунду
-
-### 3. Производим оптимизацию конфигурации СУБД
-
-#### 3.1 Смотри текущие настройки БД
+#### 1.1 Устанавливаем minikube (так как сервис у меня заблокирован, пришлось выкачать файл по ВПН и закинуть его локально в иректорию /home/)
 ```
-psql -p 5433 -d pgbench_test
-```
-```sql
-SHOW shared_buffers;
-SHOW effective_cache_size;
-SHOW work_mem;
-SHOW maintenance_work_mem;
-SHOW wal_buffers;
-SHOW max_connections;
-SHOW checkpoint_completion_target;
+dnf install -y minikube-latest.x86_64.rpm
 ```
 
-![pgbench](image/pgbench2.png)
-
-#### 3.2 Расчитываем оптимальные параметры (хар-ки сервер 2CPU 4RAM)
-| Параметр | Значение | Назначение |
-|----------|----------|------------|
-| **Память и кэширование** |
-| `shared_buffers` | 1GB | Этот параметр рекомендуется рассчитывать как 25% от RAM, доступной серверу СУБД. |
-| `effective_cache_size` | 3GB | Этот параметр рекомендуется рассчитывать как 75% от RAM, доступной серверу СУБД. |
-| `work_mem` | 32MB | Память для операций сортировки, хэш-таблиц и объединений (JOIN) **внутри одного запроса**. Увеличение ускоряет сложные запросы. |
-| `maintenance_work_mem` | 512MB | Лимит памяти для AutoVacuum, Vacuum. |
-| `wal_buffers` | 8MB | Буфер для WAL (журнала предзаписи) в памяти. Увеличение снижает количество операций записи на диск. |
-| **Дисковый ввод-вывод** |
-| `random_page_cost` | 1.0 | Стоимость случайного доступа к диску. На HDD стандарт = 4, но снижено до 1.0 потому что `fsync=off` и кэширование ОС минимизируют реальные чтения. |
-| `effective_io_concurrency` | 200 | Количество одновременных операций ввода-вывода, которое может выполнять дисковая система. 200 подходит для быстрых SSD/NVMe накопителей. |
-| **Надёжность (экстремальная оптимизация)** |
-| `fsync` | off | **ОТКЛЮЧЕНО** PostgreSQL не принуждает ОС сбрасывать данные на диск. ОГРОМНЫЙ РИСК ПОТЕРИ ДАННЫХ при сбое. Максимальная скорость записи. |
-| `full_page_writes` | off | **ОТКЛЮЧЕНО** не записывать полные страницы в WAL после чекпоинта. Экономит WAL, но делает восстановление невозможным при повреждении страницы. |
-| `synchronous_commit` | off | **АСИНХРОННАЯ ФИКСАЦИЯ** транзакция считается успешной до реальной записи на диск. Повышает производительность, но риск потери последних транзакций. |
-| **Контрольные точки (Checkpoint)** |
-| `checkpoint_completion_target` | 0.1 | Параметр checkpoint_completion_target в PostgreSQL управляет тем, как быстро должны завершаться контрольные точки (checkpoints) . Этот параметр играет ключевую роль в распределении нагрузки на диск во время выполнения контрольных точек и помогает минимизировать пики операций ввода-вывода. |
-| `checkpoint_timeout` | 5min | Максимальное время между чекпоинтами. Чаще чекпоинты = меньше WAL для восстановления, но больше нагрузка. |
-| `max_wal_size` | 1GB | Максимальный размер WAL перед принудительным чекпоинтом. Меньший размер быстрее заполняется, вызывая частые чекпоинты. |
-| `min_wal_size` | 500MB | Минимальный размер WAL для автоматической очистки. Устаревшие сегменты WAL удаляются при превышении этого порога. |
-| **Параллелизм** |
-| `max_parallel_workers_per_gather` | 1 | Максимум параллельных рабочих для одного узла сбора (Gather). 1 означает, что параллельные планы запросов ОТКЛЮЧЕНЫ. |
-| `max_parallel_workers` | 2 | Общее количество параллельных рабочих во всей системе. Не более числа ядер CPU. |
-| **Планировщик запросов** |
-| `default_statistics_target` | 200 | Размер выборки для сбора статистики о таблицах (чем больше, тем точнее). 200 — хороший баланс (стандарт 100). Точнее статистика = лучше планы запросов. |
-
-#### 3.3 Пример настроек в postgresql.conf
+#### 1.2 Устанавливаем helm
 ```
-nano /var/lib/pgsql/18/test_backup/postgresql.conf
-#postgresql.conf
-listen_addresses = '*'
-port = 5433
-max_connections = 100
-shared_buffers = 1GB
-effective_cache_size = 3GB
-work_mem = 32MB
-maintenance_work_mem = 512MB
-wal_buffers = 8MB
-max_wal_size = 1GB
-min_wal_size = 500MB
-checkpoint_completion_target = 0.1
-checkpoint_timeout = 5min
-fsync = off
-full_page_writes = off
-synchronous_commit = off
-random_page_cost = 1           
-effective_io_concurrency = 200    
-default_statistics_target = 200  
-```
-```
-systemctl restart postgresql18_test.service
-```
-![postgresqlconf](image/postgresqlconf.png)
-
-### 4. Повторно тестируем с темиже параметрами
-```
-/usr/pgsql-18/bin/pgbench -c 50 -j 4 -T 120 -p 5433 pgbench_test
+dnf install helm -y
 ```
 
-![pgbench](image/pgbench3.png)
+#### 1.3 Устанавливаем docker
+```
+dnf install docker -y
+```
 
-* Оптимизированный TPS: ~2834 транзакций в секунду
-* Производительность УЛУЧШИЛАСЬ в почти в 2 раза
+#### 1.4 Устанавливаем клиент psql (для подключения к базе)
+```
+dnf install postgresql18 postgresql18-server postgresql18-contrib
+```
 
-### 5. Результаты оптимизации производительности
+![kuber](image/kuber.png)
 
-#### 5.1 Сравнение до и после
+### 2. Запускаем Minikube Dashboard
+```
+# Даем права локальному пользователю
+echo "admin ALL=(ALL) NOPASSWD: /usr/bin/podman" | sudo tee /etc/sudoers.d/minikube-podman
+# Запускаем minikube
+minikube start --driver=podman
+# Включаем адон Dashboard
+minikube addons enable dashboard
+# Открываем Веб-морду
+minikube dashboard
+# Делаем чтоб Dashboard слушал все интерфейсы 
+kubectl proxy --address='0.0.0.0' --disable-filter=true --port=8001
+```
+* На компьютере открываем браузер по ссылке http://10.65.93.102:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/
 
-| Показатель | ДО оптимизации | ПОСЛЕ оптимизации | Изменение |
-|------------|----------------|-------------------|-----------|
-| **TPS** | 1,314 | 2,834 | **+115%** ✅ |
-| **Latency** | 38.06 ms | 17.64 ms | **-54%** ✅ |
-| **Транзакций** | 157,685 | 340,079 | **+116%** ✅ |
+![kuber](image/kuber1.png)
 
-#### 5.2 Ключевые изменения в конфигурации
+### 3. Разворачиваем postgresql через yaml манифест
+```
+nano /opt/pg_kuber/postgres-manifest.yaml
+```
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:18
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "1qaz!QAZ"
+        - name: POSTGRES_DB
+          value: "testdb"
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/pgsql/18
+      volumes:
+      - name: postgres-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+    nodePort: 30007
+  type: NodePort
+```
 
-| Параметр | Значение | Эффект |
-|----------|----------|--------|
-| `shared_buffers` | 1 GB | Увеличение кэширования данных |
-| `fsync` | off | Отключение синхронной записи (риск) |
-| `synchronous_commit` | off | Асинхронная фиксация транзакций |
-| `work_mem` | 32 MB | Ускорение сортировок и джойнов |
+#### 3.1 Запускаем манифест
+```
+kubectl apply -f postgres-manifest.yaml
+```
 
-#### 6. Заключение
+![kuber](image/kuber2.png)
+![kuber](image/kuber3.png)
 
-| Оптимизация параметров PostgreSQL позволила **увеличить пропускную способность на 115%** и **снизить задержки на 54%**. Максимальная производительность достигнута за счёт отключения механизмов надёжности (`fsync`, `synchronous_commit`), что допустимо только в тестовой среде.
+* Открываем новую консоль для проброса порта postgresql
+```
+kubectl port-forward --address 0.0.0.0 service/postgres-svc 30007:5432
+```
 
+![postgres](image/postgres.png)
+
+* Проверяем простым Select работу БД
+ 
+![db](image/db1.png)
+![db](image/db2.png)
+
+
+#### 3.1 Маштабируем до 3 pod
+```
+kubectl scale deployment postgres --replicas=3
+```
+
+![pod](image/pods.png)
+![pod](image/pods1.png)
+
+### 4. Разворачиваем через helm
+
+#### 4.1 Удаляем манифест
+```
+kubectl delete -f postgres-manifest.yaml
+```
+
+![del](image/del.png)
+
+#### 4.2 Создаем файл настроек values.yaml
+```
+nano /opt/pg_kuber/values.yaml
+```
+```
+#nano /opt/pg_kuber/values.yaml
+auth:
+  postgresPassword: "1qaz!QAZ"
+  database: "testdb"
+  username: "postgres"
+
+architecture: replication
+
+primary:
+  persistence:
+    size: 1Gi
+
+secondary:
+  replicaCount: 2
+  persistence:
+    size: 1Gi
+```
+	
+#### 4.3 Устанавливаем postgres через Helm
+```
+helm install my-postgres oci://registry-1.docker.io/bitnamicharts/postgresql -f values.yaml
+```
+![helm](image/helm2.png)
+![helm](image/helm3.png)
+![helm](image/helm4.png)
+
+#### 4.4 Пробрасываем порт 
+```
+kubectl port-forward --address 0.0.0.0 svc/my-postgres-postgresql-primary 30007:5432
+```
+
+* Проверяем простым Select работу БД
+
+![db](image/db3.png)
+![db](image/db4.png)
+![db](image/db5.png)
