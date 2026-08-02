@@ -1,0 +1,26 @@
+all:
+  children:
+    yandex_bastion:
+      hosts:
+        yc_bastion:
+          ansible_host: 84.252.129.208
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: /root/id_rsa
+          db_host: rc1a-iigt9mudkq36s892.mdb.yandexcloud.net
+          db_port: 6432
+          db_name: otus_lesson
+          db_user: admin_user
+          db_password: StrongPassword2026!
+    
+    sber_bastion:
+      hosts:
+        sber_bastion:
+          ansible_host: 176.108.249.113
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: /root/id_rsa
+          db_host: 10.0.0.7
+          db_port: 5432
+          db_name: sber_db
+          db_user: dbadmin
+          db_password: g87zO518bdTa9VrcpoAzkGHmvvMDQNWVrrWFPNJOeNgA2WehtSXrSJvmjDfuFcKm
+

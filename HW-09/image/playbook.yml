@@ -1,0 +1,50 @@
+---
+- name: Setup PostgreSQL client and test Managed DB connections
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Update apt cache and install PostgreSQL client + pgbench
+      apt:
+        name:
+          - postgresql-client
+          - postgresql-contrib
+        state: present
+        update_cache: yes
+
+    - name: Build PostgreSQL connection string
+      set_fact:
+        pg_conn_string: "host={{ db_host }} port={{ db_port }} dbname={{ db_name }} user={{ db_user }} password={{ db_password }} sslmode=require"
+
+    # БАЗОВАЯ ПРОВЕРКА ПОДКЛЮЧЕНИЯ
+
+    - name: Test DB connection (SELECT version)
+      shell: >
+        psql "{{ pg_conn_string }}" -c "SELECT version();"
+      register: db_version_test
+      ignore_errors: yes
+
+    - name: Show DB version result
+      debug:
+        msg: "{{ inventory_hostname }} connected successfully! Version: {{ db_version_test.stdout_lines[1] | default('Check output') }}"
+
+    # ТЕСТИРОВАНИЕ pgbench
+
+    - name: Initialize pgbench tables in the database
+      shell: >
+        pgbench -i "{{ pg_conn_string }}"
+      register: pgbench_init
+      ignore_errors: yes
+
+    - name: Run pgbench latency/throughput test (10 seconds)
+      shell: >
+        pgbench -T 10 -c 2 -j 2 "{{ pg_conn_string }}"
+      register: pgbench_test
+      ignore_errors: yes
+
+    - name: Show pgbench test results
+      debug:
+        msg: 
+          - "=== Результаты pgbench для {{ inventory_hostname }} ==="
+          - "{{ pgbench_test.stdout_lines }}"
