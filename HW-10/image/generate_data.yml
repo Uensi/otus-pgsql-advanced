@@ -1,0 +1,91 @@
+---
+- name: Generate identical benchmark data on both VMs
+  hosts: benchmark
+  become: true
+
+  tasks:
+    - name: Install curl for ClickHouse static binary download
+      ansible.builtin.apt:
+        name:
+          - curl
+        state: present
+        update_cache: true
+
+    - name: Create benchmark directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+      loop:
+        - "{{ work_dir }}"
+        - "{{ data_dir }}"
+        - "{{ results_dir }}"
+        - "{{ sql_dir }}"
+
+    - name: Install static ClickHouse binary for data generation
+      ansible.builtin.shell: |
+        set -e
+        cd /tmp
+        curl -fsSL https://clickhouse.com/ | sh
+        install -m 0755 clickhouse /usr/local/bin/clickhouse
+        rm -f clickhouse
+      args:
+        creates: /usr/local/bin/clickhouse
+
+    - name: Generate users.csv
+      ansible.builtin.shell: |
+        /usr/local/bin/clickhouse local --query "
+        SELECT
+            number + 1 AS user_id,
+            18 + number % 50 AS age,
+            ['RU','US','DE','FR','CN','IN','BR','TR'][1 + number % 8] AS country_code,
+            toDate('2020-01-01') + number % 1500 AS signup_date
+        FROM numbers({{ users_count }})
+        FORMAT CSV
+        " > {{ data_dir }}/users.csv
+      args:
+        creates: "{{ data_dir }}/users.csv"
+
+    - name: Generate events CSV parts
+      ansible.builtin.shell: |
+        /usr/local/bin/clickhouse local --query "
+        SELECT
+            event_id,
+            1 + event_id % {{ users_count }} AS user_id,
+            toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+            ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+            1 + event_id % 1000 AS category_id,
+            100 + event_id % 1000000 AS price_cents,
+            concat(
+                leftPad(lower(hex(event_id)), 16, '0'),
+                leftPad(lower(hex(event_id * 7)), 16, '0'),
+                leftPad(lower(hex(event_id * 13)), 16, '0'),
+                leftPad(lower(hex(event_id * 31)), 16, '0')
+            ) AS payload
+        FROM
+        (
+            SELECT {{ (item | int) * rows_per_part }} + number AS event_id
+            FROM numbers({{ rows_per_part }})
+        )
+        FORMAT CSV
+        " > {{ data_dir }}/events_{{ item }}.csv
+      args:
+        creates: "{{ data_dir }}/events_{{ item }}.csv"
+      with_sequence: start=0 end={{ (parts | int) - 1 }} format='%d'
+
+    - name: Fix CSV permissions
+      ansible.builtin.shell: |
+        find {{ data_dir }} -maxdepth 1 -type f -name '*.csv' -exec chmod 644 {} +
+      changed_when: false
+
+    - name: Show data directory size
+      ansible.builtin.shell: |
+        du -sh {{ data_dir }}
+      register: data_size
+      changed_when: false
+
+    - name: Print data directory size
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} data size: {{ data_size.stdout }}"

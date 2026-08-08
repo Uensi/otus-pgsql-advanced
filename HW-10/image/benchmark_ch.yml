@@ -1,0 +1,161 @@
+---
+- name: Benchmark ClickHouse queries
+  hosts: clickhouse
+  become: true
+
+  tasks:
+    - name: Ensure results directory exists
+      ansible.builtin.file:
+        path: "{{ results_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Copy ClickHouse Q1 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q1.sql"
+        mode: "0644"
+        content: |
+          SELECT count()
+          FROM events
+          WHERE category_id = 42
+            AND event_time >= toDateTime('2026-01-01 00:00:00')
+            AND event_time < toDateTime('2026-02-01 00:00:00')
+            AND price_cents > 10000
+
+    - name: Copy ClickHouse Q2 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q2.sql"
+        mode: "0644"
+        content: |
+          SELECT
+              category_id,
+              toStartOfMonth(event_time) AS month,
+              count() AS cnt,
+              sum(price_cents) AS sum_cents,
+              avg(price_cents) AS avg_cents
+          FROM events
+          WHERE event_time >= toDateTime('2026-01-01 00:00:00')
+            AND event_time < toDateTime('2026-04-01 00:00:00')
+          GROUP BY
+              category_id,
+              month
+          ORDER BY
+              category_id,
+              month
+
+    - name: Copy ClickHouse Q3 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q3.sql"
+        mode: "0644"
+        content: |
+          SELECT
+              u.country_code,
+              e.event_type,
+              count() AS cnt,
+              sum(e.price_cents) AS sum_cents
+          FROM events AS e
+          INNER JOIN users AS u
+              ON e.user_id = u.user_id
+          WHERE e.event_time >= toDateTime('2026-01-01 00:00:00')
+            AND e.event_time < toDateTime('2026-04-01 00:00:00')
+          GROUP BY
+              u.country_code,
+              e.event_type
+          ORDER BY cnt DESC
+          LIMIT 20
+
+    - name: Copy ClickHouse Q1 explain query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q1_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN PLAN
+          SELECT count()
+          FROM events
+          WHERE category_id = 42
+            AND event_time >= toDateTime('2026-01-01 00:00:00')
+            AND event_time < toDateTime('2026-02-01 00:00:00')
+            AND price_cents > 10000
+
+    - name: Copy ClickHouse Q2 explain query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q2_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN PLAN
+          SELECT
+              category_id,
+              toStartOfMonth(event_time) AS month,
+              count() AS cnt,
+              sum(price_cents) AS sum_cents,
+              avg(price_cents) AS avg_cents
+          FROM events
+          WHERE event_time >= toDateTime('2026-01-01 00:00:00')
+            AND event_time < toDateTime('2026-04-01 00:00:00')
+          GROUP BY
+              category_id,
+              month
+          ORDER BY
+              category_id,
+              month
+
+    - name: Copy ClickHouse Q3 explain query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_q3_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN PLAN
+          SELECT
+              u.country_code,
+              e.event_type,
+              count() AS cnt,
+              sum(e.price_cents) AS sum_cents
+          FROM events AS e
+          INNER JOIN users AS u
+              ON e.user_id = u.user_id
+          WHERE e.event_time >= toDateTime('2026-01-01 00:00:00')
+            AND e.event_time < toDateTime('2026-04-01 00:00:00')
+          GROUP BY
+              u.country_code,
+              e.event_type
+          ORDER BY cnt DESC
+          LIMIT 20
+
+    - name: Warmup ClickHouse queries
+      ansible.builtin.shell: |
+        for run in $(seq 1 {{ query_warmup }}); do
+          clickhouse-client --database {{ ch_database }} --queries-file {{ sql_dir }}/ch_q{{ item }}.sql > /dev/null
+        done
+      loop:
+        - 1
+        - 2
+        - 3
+      changed_when: false
+
+    - name: Run ClickHouse benchmark queries
+      ansible.builtin.shell: |
+        for run in $(seq 1 {{ query_runs }}); do
+          clickhouse-client \
+            --database {{ ch_database }} \
+            --time \
+            --queries-file {{ sql_dir }}/ch_q{{ item }}.sql > /dev/null 2> {{ results_dir }}/ch_q{{ item }}_run${run}.time
+        done
+      loop:
+        - 1
+        - 2
+        - 3
+      async: 86400
+      poll: 30
+
+    - name: Save ClickHouse explain plans
+      ansible.builtin.shell: |
+        clickhouse-client \
+          --database {{ ch_database }} \
+          --queries-file {{ sql_dir }}/ch_q{{ item }}_explain.sql > {{ results_dir }}/ch_q{{ item }}_plan.txt
+      loop:
+        - 1
+        - 2
+        - 3
+

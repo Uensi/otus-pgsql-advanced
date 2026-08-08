@@ -1,0 +1,27 @@
+---
+# Work catalog
+work_dir: /var/bench
+data_dir: "{{ work_dir }}/data"
+results_dir: "{{ work_dir }}/results"
+sql_dir: "{{ work_dir }}/sql"
+
+# Data Volume
+parts: 10
+rows_per_part: 10000000
+users_count: 1000000
+
+# Loading and generation
+load_parallel: 4
+generate_parallel: 4
+
+# Bemchmark
+query_runs: 3
+query_warmup: 1
+
+# PostgreSQL
+pg_version: "18"
+pg_database: bench
+pg_config_path: "/etc/postgresql/{{ pg_version }}/main/postgresql.conf"
+
+# ClickHouse
+ch_database: bench

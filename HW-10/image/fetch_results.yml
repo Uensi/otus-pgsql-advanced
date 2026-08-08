@@ -1,0 +1,18 @@
+---
+- name: Fetch benchmark results to localhost
+  hosts: benchmark
+  become: true
+
+  tasks:
+    - name: Archive results
+      ansible.builtin.shell: |
+        tar -czf {{ work_dir }}/results_{{ inventory_hostname }}.tar.gz -C {{ results_dir }} .
+      args:
+        creates: "{{ work_dir }}/results_{{ inventory_hostname }}.tar.gz"
+
+    - name: Fetch results archive
+      ansible.builtin.fetch:
+        src: "{{ work_dir }}/results_{{ inventory_hostname }}.tar.gz"
+        dest: "results/{{ inventory_hostname }}.tar.gz"
+        flat: true
+

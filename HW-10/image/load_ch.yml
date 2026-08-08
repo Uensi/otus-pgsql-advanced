@@ -1,0 +1,78 @@
+---
+- name: Load data into ClickHouse
+  hosts: clickhouse
+  become: true
+
+  tasks:
+    - name: Copy ClickHouse schema
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/ch_schema.sql"
+        mode: "0644"
+        content: |
+          DROP TABLE IF EXISTS users;
+          DROP TABLE IF EXISTS events;
+
+          CREATE TABLE users (
+              user_id UInt32,
+              age UInt8,
+              country_code LowCardinality(String),
+              signup_date Date
+          )
+          ENGINE = MergeTree
+          ORDER BY user_id;
+
+          CREATE TABLE events (
+              event_id UInt64,
+              user_id UInt32,
+              event_time DateTime,
+              event_type LowCardinality(String),
+              category_id UInt32,
+              price_cents UInt32,
+              payload String CODEC(ZSTD(1))
+          )
+          ENGINE = MergeTree
+          PARTITION BY toYYYYMM(event_time)
+          ORDER BY (category_id, event_time, event_id)
+          SETTINGS index_granularity = 8192;
+
+    - name: Create ClickHouse database
+      ansible.builtin.shell: |
+        clickhouse-client --query "CREATE DATABASE IF NOT EXISTS {{ ch_database }}"
+      changed_when: false
+
+    - name: Apply ClickHouse schema
+      ansible.builtin.shell: |
+        clickhouse-client --database {{ ch_database }} --multiquery < {{ sql_dir }}/ch_schema.sql
+
+    - name: Load users.csv into ClickHouse
+      ansible.builtin.shell: |
+        clickhouse-client --database {{ ch_database }} --query="INSERT INTO users FORMAT CSV" < {{ data_dir }}/users.csv
+      async: 86400
+      poll: 30
+
+    - name: Parallel load events into ClickHouse
+      ansible.builtin.shell: |
+        find {{ data_dir }} -maxdepth 1 -name 'events_*.csv' -print0 | \
+        xargs -0 -r -P {{ load_parallel }} -I{} \
+        sh -c 'clickhouse-client --database {{ ch_database }} --query="INSERT INTO events FORMAT CSV" < "$1"' _ {}
+      async: 86400
+      poll: 30
+
+    - name: Count ClickHouse events
+      ansible.builtin.shell: |
+        clickhouse-client --database {{ ch_database }} --query "SELECT count() FROM events"
+      register: ch_events_count
+      changed_when: false
+
+    - name: Count ClickHouse users
+      ansible.builtin.shell: |
+        clickhouse-client --database {{ ch_database }} --query "SELECT count() FROM users"
+      register: ch_users_count
+      changed_when: false
+
+    - name: Print ClickHouse row counts
+      ansible.builtin.debug:
+        msg:
+          - "ClickHouse events count: {{ ch_events_count.stdout }}"
+          - "ClickHouse users count: {{ ch_users_count.stdout }}"
+

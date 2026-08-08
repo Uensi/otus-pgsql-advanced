@@ -1,0 +1,89 @@
+---
+- name: Install PostgreSQL on bench-vm-01
+  hosts: postgres
+  become: true
+
+  handlers:
+    - name: restart postgresql
+      ansible.builtin.systemd:
+        name: postgresql
+        state: restarted
+
+  tasks:
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - rsync
+          - zstd
+          - htop
+          - acl            # <-- ДОБАВЛЕНО для корректной работы become_user
+        state: present
+        update_cache: true
+
+    - name: Check PostgreSQL apt key
+      ansible.builtin.stat:
+        path: /etc/apt/trusted.gpg.d/pgdg.gpg
+      register: pgdg_key
+
+    - name: Add PostgreSQL apt key
+      ansible.builtin.shell: |
+        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+      args:
+        creates: /etc/apt/trusted.gpg.d/pgdg.gpg
+      when: not pgdg_key.stat.exists
+
+    - name: Add PostgreSQL apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pgdg.list
+        content: |
+          deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main
+        mode: "0644"
+
+    - name: Install PostgreSQL {{ pg_version }}
+      ansible.builtin.apt:
+        name:
+          - postgresql-{{ pg_version }}
+          - postgresql-client-{{ pg_version }}
+        state: present
+        update_cache: true
+
+    - name: Ensure PostgreSQL service is started and enabled
+      ansible.builtin.systemd:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Create benchmark directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+      loop:
+        - "{{ work_dir }}"
+        - "{{ data_dir }}"
+        - "{{ results_dir }}"
+        - "{{ sql_dir }}"
+
+    - name: Tune PostgreSQL settings
+      ansible.builtin.lineinfile:
+        path: "{{ pg_config_path }}"
+        regexp: "^#?{{ item.key }}\\s*="
+        line: "{{ item.key }} = {{ item.value }}"
+      loop:
+        - { key: listen_addresses, value: "'localhost'" }
+        - { key: shared_buffers, value: "2GB" }
+        - { key: effective_cache_size, value: "6GB" }
+        - { key: work_mem, value: "256MB" }
+        - { key: maintenance_work_mem, value: "1GB" }
+        - { key: max_parallel_workers_per_gather, value: "4" }
+        - { key: max_parallel_maintenance_workers, value: "4" }
+        - { key: max_worker_processes, value: "16" }
+        - { key: jit, value: "off" }
+        - { key: random_page_cost, value: "1.1" }
+      notify: restart postgresql

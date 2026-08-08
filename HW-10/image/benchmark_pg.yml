@@ -1,0 +1,87 @@
+---
+- name: Benchmark PostgreSQL queries
+  hosts: postgres
+  become: true
+
+  tasks:
+    - name: Ensure results directory exists
+      ansible.builtin.file:
+        path: "{{ results_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Copy PostgreSQL Q1 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/pg_q1_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT count(*)
+          FROM events
+          WHERE category_id = 42
+            AND event_time >= TIMESTAMP '2026-01-01 00:00:00'
+            AND event_time < TIMESTAMP '2026-02-01 00:00:00'
+            AND price_cents > 10000;
+
+    - name: Copy PostgreSQL Q2 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/pg_q2_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT
+              category_id,
+              date_trunc('month', event_time) AS month,
+              count(*) AS cnt,
+              sum(price_cents) AS sum_cents,
+              avg(price_cents)::numeric(12,2) AS avg_cents
+          FROM events
+          WHERE event_time >= TIMESTAMP '2026-01-01 00:00:00'
+            AND event_time < TIMESTAMP '2026-04-01 00:00:00'
+          GROUP BY 1, 2
+          ORDER BY 1, 2;
+
+    - name: Copy PostgreSQL Q3 query
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/pg_q3_explain.sql"
+        mode: "0644"
+        content: |
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT
+              u.country_code,
+              e.event_type,
+              count(*) AS cnt,
+              sum(e.price_cents) AS sum_cents
+          FROM events e
+          JOIN users u USING (user_id)
+          WHERE e.event_time >= TIMESTAMP '2026-01-01 00:00:00'
+            AND e.event_time < TIMESTAMP '2026-04-01 00:00:00'
+          GROUP BY 1, 2
+          ORDER BY cnt DESC
+          LIMIT 20;
+
+    - name: Warmup PostgreSQL queries
+      ansible.builtin.shell: |
+        for run in $(seq 1 {{ query_warmup }}); do
+          sudo -u postgres psql -d {{ pg_database }} -f {{ sql_dir }}/pg_q{{ item }}_explain.sql > /dev/null
+        done
+      loop:
+        - 1
+        - 2
+        - 3
+      changed_when: false
+
+    - name: Run PostgreSQL benchmark queries
+      ansible.builtin.shell: |
+        for run in $(seq 1 {{ query_runs }}); do
+          sudo -u postgres psql -d {{ pg_database }} -f {{ sql_dir }}/pg_q{{ item }}_explain.sql > {{ results_dir }}/pg_q{{ item }}_run${run}.txt
+        done
+      loop:
+        - 1
+        - 2
+        - 3
+      async: 86400
+      poll: 30
+

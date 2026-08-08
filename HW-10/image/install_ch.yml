@@ -1,0 +1,85 @@
+---
+- name: Install ClickHouse on bench-vm-02
+  hosts: clickhouse
+  become: true
+
+  handlers:
+    - name: restart clickhouse-server
+      ansible.builtin.systemd:
+        name: clickhouse-server
+        state: restarted
+
+  tasks:
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+          - gnupg
+          - apt-transport-https
+          - rsync
+          - zstd
+          - htop
+        state: present
+        update_cache: true
+
+    - name: Check ClickHouse apt key
+      ansible.builtin.stat:
+        path: /usr/share/keyrings/clickhouse-keyring.gpg
+      register: clickhouse_key
+
+    - name: Add ClickHouse apt key
+      ansible.builtin.shell: |
+        curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/clickhouse-keyring.gpg
+      when: not clickhouse_key.stat.exists
+
+    - name: Add ClickHouse apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/clickhouse.list
+        content: |
+          deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main
+        mode: "0644"
+
+    - name: Install ClickHouse server and client
+      ansible.builtin.apt:
+        name:
+          - clickhouse-server
+          - clickhouse-client
+        state: present
+        update_cache: true
+
+    - name: Ensure ClickHouse service is started and enabled
+      ansible.builtin.systemd:
+        name: clickhouse-server
+        state: started
+        enabled: true
+
+    - name: Create benchmark directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+      loop:
+        - "{{ work_dir }}"
+        - "{{ data_dir }}"
+        - "{{ results_dir }}"
+        - "{{ sql_dir }}"
+
+    - name: Configure ClickHouse benchmark profile
+      ansible.builtin.copy:
+        dest: /etc/clickhouse-server/users.d/benchmark.xml
+        mode: "0644"
+        content: |
+          <clickhouse>
+            <profiles>
+              <default>
+                <max_threads>4</max_threads>
+                <max_memory_usage>6000000000</max_memory_usage>
+              </default>
+            </profiles>
+          </clickhouse>
+      notify: restart clickhouse-server

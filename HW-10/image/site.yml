@@ -1,0 +1,10 @@
+---
+- import_playbook: install_pg.yml
+- import_playbook: install_ch.yml
+- import_playbook: generate_data.yml
+- import_playbook: load_pg.yml
+- import_playbook: load_ch.yml
+- import_playbook: benchmark_pg.yml
+- import_playbook: benchmark_ch.yml
+- import_playbook: fetch_results.yml
+

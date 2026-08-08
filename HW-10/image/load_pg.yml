@@ -1,0 +1,95 @@
+---
+- name: Load data into PostgreSQL
+  hosts: postgres
+  become: true
+
+  tasks:
+    - name: Copy PostgreSQL schema
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/pg_schema.sql"
+        mode: "0644"
+        content: |
+          DROP TABLE IF EXISTS events CASCADE;
+          DROP TABLE IF EXISTS users CASCADE;
+
+          CREATE TABLE users (
+              user_id      INTEGER NOT NULL,
+              age          SMALLINT NOT NULL,
+              country_code CHAR(2) NOT NULL,
+              signup_date  DATE NOT NULL
+          );
+
+          CREATE TABLE events (
+              event_id    BIGINT NOT NULL,
+              user_id     INTEGER NOT NULL,
+              event_time  TIMESTAMP NOT NULL,
+              event_type  TEXT NOT NULL,
+              category_id INTEGER NOT NULL,
+              price_cents INTEGER NOT NULL,
+              payload     TEXT NOT NULL
+          );
+
+    - name: Copy PostgreSQL post-load script
+      ansible.builtin.copy:
+        dest: "{{ sql_dir }}/pg_post_load.sql"
+        mode: "0644"
+        content: |
+          ALTER TABLE users ADD PRIMARY KEY (user_id);
+
+          CREATE INDEX IF NOT EXISTS events_cat_time_idx
+          ON events (category_id, event_time)
+          INCLUDE (price_cents);
+
+          CREATE INDEX IF NOT EXISTS events_time_brin
+          ON events USING brin (event_time);
+
+          ANALYZE users;
+          ANALYZE events;
+
+    - name: Create benchmark database if not exists
+      ansible.builtin.shell: |
+        sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ pg_database }}'" | grep -q 1 || sudo -u postgres createdb {{ pg_database }}
+      changed_when: false
+
+    - name: Apply PostgreSQL schema
+      ansible.builtin.shell: |
+        sudo -u postgres psql -d {{ pg_database }} -v ON_ERROR_STOP=1 -f {{ sql_dir }}/pg_schema.sql
+
+    - name: Load users.csv into PostgreSQL
+      ansible.builtin.shell: |
+        sudo -u postgres psql -d {{ pg_database }} -v ON_ERROR_STOP=1 -c "COPY users FROM '{{ data_dir }}/users.csv' WITH (FORMAT csv, HEADER false)"
+      async: 86400
+      poll: 30
+
+    - name: Parallel load events into PostgreSQL
+      ansible.builtin.shell: |
+        find {{ data_dir }} -maxdepth 1 -name 'events_*.csv' -print0 | \
+        xargs -0 -r -P {{ load_parallel }} -I{} \
+        sudo -u postgres psql -d {{ pg_database }} -v ON_ERROR_STOP=1 -c "COPY events FROM '{}' WITH (FORMAT csv, HEADER false)"
+      async: 86400
+      poll: 30
+
+    - name: Create indexes and analyze PostgreSQL tables
+      ansible.builtin.shell: |
+        sudo -u postgres psql -d {{ pg_database }} -v ON_ERROR_STOP=1 -f {{ sql_dir }}/pg_post_load.sql
+      async: 86400
+      poll: 30
+
+    - name: Count PostgreSQL events
+      ansible.builtin.shell: |
+        sudo -u postgres psql -d {{ pg_database }} -Atc "SELECT count(*) FROM events"
+      register: pg_events_count
+      changed_when: false
+
+    - name: Count PostgreSQL users
+      ansible.builtin.shell: |
+        sudo -u postgres psql -d {{ pg_database }} -Atc "SELECT count(*) FROM users"
+      register: pg_users_count
+      changed_when: false
+
+    - name: Print PostgreSQL row counts
+      ansible.builtin.debug:
+        msg:
+          - "PostgreSQL events count: {{ pg_events_count.stdout }}"
+          - "PostgreSQL users count: {{ pg_users_count.stdout }}"
+
