@@ -1,0 +1,50 @@
+                                                                                           QUERY PLAN                                                                                           
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2160467.23..2160467.28 rows=20 width=25) (actual time=280622.015..280649.154 rows=8.00 loops=1)
+   Buffers: shared hit=260518 read=1469117
+   ->  Sort  (cost=2160467.23..2160467.39 rows=64 width=25) (actual time=280622.013..280649.151 rows=8.00 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=260518 read=1469117
+         ->  Finalize GroupAggregate  (cost=2160431.68..2160465.53 rows=64 width=25) (actual time=280621.972..280649.133 rows=8.00 loops=1)
+               Group Key: u.country_code, e.event_type
+               Buffers: shared hit=260515 read=1469117
+               ->  Gather Merge  (cost=2160431.68..2160462.33 rows=256 width=25) (actual time=280621.956..280649.107 rows=40.00 loops=1)
+                     Workers Planned: 4
+                     Workers Launched: 4
+                     Buffers: shared hit=260515 read=1469117
+                     ->  Sort  (cost=2159431.62..2159431.78 rows=64 width=25) (actual time=280609.154..280609.159 rows=8.00 loops=5)
+                           Sort Key: u.country_code, e.event_type
+                           Sort Method: quicksort  Memory: 25kB
+                           Buffers: shared hit=260515 read=1469117
+                           Worker 0:  Sort Method: quicksort  Memory: 25kB
+                           Worker 1:  Sort Method: quicksort  Memory: 25kB
+                           Worker 2:  Sort Method: quicksort  Memory: 25kB
+                           Worker 3:  Sort Method: quicksort  Memory: 25kB
+                           ->  Partial HashAggregate  (cost=2159429.06..2159429.70 rows=64 width=25) (actual time=280609.106..280609.113 rows=8.00 loops=5)
+                                 Group Key: u.country_code, e.event_type
+                                 Batches: 1  Memory Usage: 32kB
+                                 Buffers: shared hit=260455 read=1469117
+                                 Worker 0:  Batches: 1  Memory Usage: 32kB
+                                 Worker 1:  Batches: 1  Memory Usage: 32kB
+                                 Worker 2:  Batches: 1  Memory Usage: 32kB
+                                 Worker 3:  Batches: 1  Memory Usage: 32kB
+                                 ->  Parallel Hash Join  (cost=14783.00..2123791.80 rows=3563726 width=13) (actual time=29711.825..279861.572 rows=3110400.00 loops=5)
+                                       Hash Cond: (e.user_id = u.user_id)
+                                       Buffers: shared hit=260455 read=1469117
+                                       ->  Parallel Seq Scan on events e  (cost=0.00..2099169.67 rows=3748221 width=14) (actual time=29561.035..278331.343 rows=3110400.00 loops=5)
+                                             Filter: ((event_time >= '2026-01-01 00:00:00'::timestamp without time zone) AND (event_time < '2026-04-01 00:00:00'::timestamp without time zone))
+                                             Rows Removed by Filter: 16889600
+                                             Buffers: shared hit=255047 read=1469117
+                                       ->  Parallel Hash  (cost=9574.67..9574.67 rows=416667 width=7) (actual time=149.425..149.427 rows=200000.00 loops=5)
+                                             Buckets: 1048576  Batches: 1  Memory Usage: 47392kB
+                                             Buffers: shared hit=5408
+                                             ->  Parallel Seq Scan on users u  (cost=0.00..9574.67 rows=416667 width=7) (actual time=0.020..41.618 rows=200000.00 loops=5)
+                                                   Buffers: shared hit=5408
+ Settings: work_mem = '256MB', max_parallel_workers_per_gather = '4', random_page_cost = '1.1', effective_cache_size = '6GB', jit = 'off'
+ Planning:
+   Buffers: shared hit=281
+ Planning Time: 0.876 ms
+ Execution Time: 280649.283 ms
+(46 rows)
+

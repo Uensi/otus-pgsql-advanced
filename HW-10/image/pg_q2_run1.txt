@@ -1,0 +1,28 @@
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=2518804.31..4754759.25 rows=14478654 width=44) (actual time=281247.819..286402.185 rows=3000.00 loops=1)
+   Group Key: category_id, (date_trunc('month'::text, event_time))
+   Buffers: shared hit=255158 read=1469182
+   ->  Gather Merge  (cost=2518804.31..4313971.76 rows=14992883 width=16) (actual time=281245.964..284270.609 rows=15552000.00 loops=1)
+         Workers Planned: 4
+         Workers Launched: 4
+         Buffers: shared hit=255158 read=1469182
+         ->  Sort  (cost=2517804.25..2527174.80 rows=3748221 width=16) (actual time=281203.774..281728.793 rows=3110400.00 loops=5)
+               Sort Key: category_id, (date_trunc('month'::text, event_time))
+               Sort Method: quicksort  Memory: 217237kB
+               Buffers: shared hit=255158 read=1469182
+               Worker 0:  Sort Method: quicksort  Memory: 221492kB
+               Worker 1:  Sort Method: quicksort  Memory: 217638kB
+               Worker 2:  Sort Method: quicksort  Memory: 218163kB
+               Worker 3:  Sort Method: quicksort  Memory: 224492kB
+               ->  Parallel Seq Scan on events  (cost=0.00..2108540.22 rows=3748221 width=16) (actual time=29321.576..279788.373 rows=3110400.00 loops=5)
+                     Filter: ((event_time >= '2026-01-01 00:00:00'::timestamp without time zone) AND (event_time < '2026-04-01 00:00:00'::timestamp without time zone))
+                     Rows Removed by Filter: 16889600
+                     Buffers: shared hit=254982 read=1469182
+ Settings: work_mem = '256MB', max_parallel_workers_per_gather = '4', random_page_cost = '1.1', effective_cache_size = '6GB', jit = 'off'
+ Planning:
+   Buffers: shared hit=143
+ Planning Time: 0.596 ms
+ Execution Time: 286417.146 ms
+(24 rows)
+

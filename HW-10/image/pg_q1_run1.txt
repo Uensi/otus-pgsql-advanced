@@ -1,0 +1,18 @@
+                                                                                      QUERY PLAN                                                                                       
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5704.76..5704.77 rows=1 width=8) (actual time=7.836..7.837 rows=1.00 loops=1)
+   Buffers: shared hit=10564
+   ->  Index Only Scan using events_cat_time_idx on events  (cost=0.57..5692.28 rows=4993 width=0) (actual time=0.037..7.513 rows=5298.00 loops=1)
+         Index Cond: ((category_id = 42) AND (event_time >= '2026-01-01 00:00:00'::timestamp without time zone) AND (event_time < '2026-02-01 00:00:00'::timestamp without time zone))
+         Filter: (price_cents > 10000)
+         Rows Removed by Filter: 60
+         Heap Fetches: 5358
+         Index Searches: 1
+         Buffers: shared hit=10564
+ Settings: work_mem = '256MB', max_parallel_workers_per_gather = '4', random_page_cost = '1.1', effective_cache_size = '6GB', jit = 'off'
+ Planning:
+   Buffers: shared hit=123
+ Planning Time: 0.528 ms
+ Execution Time: 7.886 ms
+(14 rows)
+
