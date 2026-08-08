@@ -1,0 +1,3213 @@
+root@DESKTOP-AUNNGJL:~/benchmark-ansible# ansible-playbook site.yml
+
+PLAY [Install PostgreSQL on bench-vm-01] ***********************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Install prerequisites] ***********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Check PostgreSQL apt key] ********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Add PostgreSQL apt key] **********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01]
+
+TASK [Add PostgreSQL apt repository] ***************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01]
+
+TASK [Install PostgreSQL 18] ***********************************************************************************************************************************************************************************************************************************************************
+^C [ERROR]: User interrupted execution
+root@DESKTOP-AUNNGJL:~/benchmark-ansible# history
+    1  curl -l https://2ip.ru
+    2  pwd
+    3  sudo -i
+    4  ls -la
+    5  mkdir benchmark-ansible
+    6  cd benchmark-ansible/
+    7  cd ../
+    8  mc
+    9  pwd
+   10  ls -la
+   11  cd benchmark-ansible/
+   12  mkdir -p group_vars results
+   13  touch ansible.cfg inventory.ini group_vars/all.yml
+   14  touch install_pg.yml install_ch.yml generate_data.yml load_pg.yml load_ch.yml benchmark_pg.yml benchmark_ch.yml fetch_results.yml site.yml
+   15  ls -la
+   16  nano ansible.cfg
+   17  nano inventory.ini
+   18  ansible all -m ping
+   19  nano group_vars/all.yml
+   20  nano install_pg.yml
+   21  nano install_ch.yml
+   22  nano generate_data.yml
+   23  nanlo load_pg.yml
+   24  nano load_pg.yml
+   25  nano load_ch.yml
+   26  nano benchmark_pg.yml
+   27  nano benchmark_ch.yml
+   28  nano fetch_results.yml
+   29  nano site.yml
+   30  ansible-playbook site.yml -v
+   31  nano install_pg.yml
+   32  ansible-playbook install_pg.yml
+   33  nano load_pg.yml
+   34  nano benchmark_pg.yml
+   35  ansible-playbook load_pg.yml
+   36  nano ---
+   37  - name: Cleanup benchmark environment
+   38  nano cleanup.yml
+   39  ansible-playbook cleanup.yml
+   40  nano uninstall.yml
+   41  ansible-playbook uninstall.yml
+   42  ansible-playbook site.yml
+   43  history
+root@DESKTOP-AUNNGJL:~/benchmark-ansible# ansible-playbook site.yml -v
+Using /root/benchmark-ansible/ansible.cfg as config file
+
+PLAY [Install PostgreSQL on bench-vm-01] ***********************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Install prerequisites] ***********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cache_update_time: 1786180761
+  cache_updated: true
+
+TASK [Check PostgreSQL apt key] ********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  stat:
+    atime: 1786180741.2647145
+    attr_flags: e
+    attributes:
+    - extents
+    block_size: 4096
+    blocks: 8
+    charset: binary
+    checksum: e80e9988e260a98f13b52705697e31e589aa3700
+    ctime: 1786180737.444636
+    dev: 64513
+    device_type: 0
+    executable: false
+    exists: true
+    gid: 0
+    gr_name: root
+    inode: 717
+    isblk: false
+    ischr: false
+    isdir: false
+    isfifo: false
+    isgid: false
+    islnk: false
+    isreg: true
+    issock: false
+    isuid: false
+    mimetype: application/octet-stream
+    mode: '0644'
+    mtime: 1786180737.444636
+    nlink: 1
+    path: /etc/apt/trusted.gpg.d/pgdg.gpg
+    pw_name: root
+    readable: true
+    rgrp: true
+    roth: true
+    rusr: true
+    size: 3494
+    uid: 0
+    version: '2272847638'
+    wgrp: false
+    woth: false
+    writeable: true
+    wusr: true
+    xgrp: false
+    xoth: false
+    xusr: false
+
+TASK [Add PostgreSQL apt key] **********************************************************************************************************************************************************************************************************************************************************
+skipping: [bench-vm-01] => changed=false
+  false_condition: not pgdg_key.stat.exists
+  skip_reason: Conditional result was False
+
+TASK [Add PostgreSQL apt repository] ***************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  checksum: e1b7eac9422412b61678065f8fc08c8ed81d572d
+  dest: /etc/apt/sources.list.d/pgdg.list
+  gid: 0
+  group: root
+  mode: '0644'
+  owner: root
+  path: /etc/apt/sources.list.d/pgdg.list
+  size: 60
+  state: file
+  uid: 0
+
+TASK [Install PostgreSQL 18] ***********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  cache_update_time: 1786180764
+  cache_updated: true
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: |-
+    Reading package lists...
+    Building dependency tree...
+    Reading state information...
+    The following additional packages will be installed:
+      libcommon-sense-perl libjson-perl libjson-xs-perl libllvm15 libpq5
+      libsensors-config libsensors5 libtypes-serialiser-perl liburing2
+      postgresql-18-jit postgresql-client-common postgresql-common ssl-cert
+      sysstat
+    Suggested packages:
+      libpq-oauth lm-sensors postgresql-doc-18 isag
+    The following NEW packages will be installed:
+      libcommon-sense-perl libjson-perl libjson-xs-perl libllvm15 libpq5
+      libsensors-config libsensors5 libtypes-serialiser-perl liburing2
+      postgresql-18 postgresql-18-jit postgresql-client-18
+      postgresql-client-common postgresql-common ssl-cert sysstat
+    Preconfiguring packages ...
+    0 upgraded, 16 newly installed, 0 to remove and 4 not upgraded.
+    Need to get 0 B/46.6 MB of archives.
+    After this operation, 193 MB of additional disk space will be used.
+    Selecting previously unselected package libjson-perl.
+    (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 94102 files and directories currently installed.)
+    Preparing to unpack .../00-libjson-perl_4.04000-1_all.deb ...
+    Unpacking libjson-perl (4.04000-1) ...
+    Selecting previously unselected package postgresql-client-common.
+    Preparing to unpack .../01-postgresql-client-common_293.pgdg22.04+1_all.deb ...
+    Unpacking postgresql-client-common (293.pgdg22.04+1) ...
+    Selecting previously unselected package ssl-cert.
+    Preparing to unpack .../02-ssl-cert_1.1.2_all.deb ...
+    Unpacking ssl-cert (1.1.2) ...
+    Selecting previously unselected package postgresql-common.
+    Preparing to unpack .../03-postgresql-common_293.pgdg22.04+1_all.deb ...
+    Adding 'diversion of /usr/bin/pg_config to /usr/bin/pg_config.libpq-dev by postgresql-common'
+    Unpacking postgresql-common (293.pgdg22.04+1) ...
+    Selecting previously unselected package libcommon-sense-perl:amd64.
+    Preparing to unpack .../04-libcommon-sense-perl_3.75-2build1_amd64.deb ...
+    Unpacking libcommon-sense-perl:amd64 (3.75-2build1) ...
+    Selecting previously unselected package libtypes-serialiser-perl.
+    Preparing to unpack .../05-libtypes-serialiser-perl_1.01-1_all.deb ...
+    Unpacking libtypes-serialiser-perl (1.01-1) ...
+    Selecting previously unselected package libjson-xs-perl.
+    Preparing to unpack .../06-libjson-xs-perl_4.040-0ubuntu0.22.04.1_amd64.deb ...
+    Unpacking libjson-xs-perl (4.040-0ubuntu0.22.04.1) ...
+    Selecting previously unselected package libllvm15:amd64.
+    Preparing to unpack .../07-libllvm15_1%3a15.0.7-0ubuntu0.22.04.3_amd64.deb ...
+    Unpacking libllvm15:amd64 (1:15.0.7-0ubuntu0.22.04.3) ...
+    Selecting previously unselected package libpq5:amd64.
+    Preparing to unpack .../08-libpq5_18.4-1.pgdg22.04+1_amd64.deb ...
+    Unpacking libpq5:amd64 (18.4-1.pgdg22.04+1) ...
+    Selecting previously unselected package libsensors-config.
+    Preparing to unpack .../09-libsensors-config_1%3a3.6.0-7ubuntu1_all.deb ...
+    Unpacking libsensors-config (1:3.6.0-7ubuntu1) ...
+    Selecting previously unselected package libsensors5:amd64.
+    Preparing to unpack .../10-libsensors5_1%3a3.6.0-7ubuntu1_amd64.deb ...
+    Unpacking libsensors5:amd64 (1:3.6.0-7ubuntu1) ...
+    Selecting previously unselected package liburing2:amd64.
+    Preparing to unpack .../11-liburing2_2.1-2build1_amd64.deb ...
+    Unpacking liburing2:amd64 (2.1-2build1) ...
+    Selecting previously unselected package postgresql-client-18.
+    Preparing to unpack .../12-postgresql-client-18_18.4-1.pgdg22.04+1_amd64.deb ...
+    Unpacking postgresql-client-18 (18.4-1.pgdg22.04+1) ...
+    Selecting previously unselected package postgresql-18.
+    Preparing to unpack .../13-postgresql-18_18.4-1.pgdg22.04+1_amd64.deb ...
+    Unpacking postgresql-18 (18.4-1.pgdg22.04+1) ...
+    Selecting previously unselected package postgresql-18-jit.
+    Preparing to unpack .../14-postgresql-18-jit_18.4-1.pgdg22.04+1_amd64.deb ...
+    Unpacking postgresql-18-jit (18.4-1.pgdg22.04+1) ...
+    Selecting previously unselected package sysstat.
+    Preparing to unpack .../15-sysstat_12.5.2-2ubuntu0.2_amd64.deb ...
+    Unpacking sysstat (12.5.2-2ubuntu0.2) ...
+    Setting up postgresql-client-common (293.pgdg22.04+1) ...
+    Setting up libsensors-config (1:3.6.0-7ubuntu1) ...
+    Setting up libpq5:amd64 (18.4-1.pgdg22.04+1) ...
+    Setting up libcommon-sense-perl:amd64 (3.75-2build1) ...
+    Setting up ssl-cert (1.1.2) ...
+    Setting up libsensors5:amd64 (1:3.6.0-7ubuntu1) ...
+    Setting up libtypes-serialiser-perl (1.01-1) ...
+    Setting up libllvm15:amd64 (1:15.0.7-0ubuntu0.22.04.3) ...
+    Setting up libjson-perl (4.04000-1) ...
+    Setting up liburing2:amd64 (2.1-2build1) ...
+    Setting up sysstat (12.5.2-2ubuntu0.2) ...
+
+    Creating config file /etc/default/sysstat with new version
+    update-alternatives: using /usr/bin/sar.sysstat to provide /usr/bin/sar (sar) in auto mode
+    Created symlink /etc/systemd/system/sysstat.service.wants/sysstat-collect.timer → /lib/systemd/system/sysstat-collect.timer.
+    Created symlink /etc/systemd/system/sysstat.service.wants/sysstat-summary.timer → /lib/systemd/system/sysstat-summary.timer.
+    Created symlink /etc/systemd/system/multi-user.target.wants/sysstat.service → /lib/systemd/system/sysstat.service.
+    Setting up libjson-xs-perl (4.040-0ubuntu0.22.04.1) ...
+    Setting up postgresql-client-18 (18.4-1.pgdg22.04+1) ...
+    update-alternatives: using /usr/share/postgresql/18/man/man1/psql.1.gz to provide /usr/share/man/man1/psql.1.gz (psql.1.gz) in auto mode
+    Setting up postgresql-common (293.pgdg22.04+1) ...
+
+    Creating config file /etc/postgresql-common/createcluster.conf with new version
+    Building PostgreSQL dictionaries from installed myspell/hunspell packages...
+    Removing obsolete dictionary files:
+    Created symlink /etc/systemd/system/multi-user.target.wants/postgresql.service → /lib/systemd/system/postgresql.service.
+    Setting up postgresql-18 (18.4-1.pgdg22.04+1) ...
+    Creating new PostgreSQL cluster 18/main ...
+    /usr/lib/postgresql/18/bin/initdb -D /var/lib/postgresql/18/main --auth-local peer --auth-host scram-sha-256 --no-instructions
+    The files belonging to this database system will be owned by user "postgres".
+    This user must also own the server process.
+
+    The database cluster will be initialized with locale "C.UTF-8".
+    The default database encoding has accordingly been set to "UTF8".
+    The default text search configuration will be set to "english".
+
+    Data page checksums are enabled.
+
+    fixing permissions on existing directory /var/lib/postgresql/18/main ... ok
+    creating subdirectories ... ok
+    selecting dynamic shared memory implementation ... posix
+    selecting default "max_connections" ... 100
+    selecting default "shared_buffers" ... 128MB
+    selecting default time zone ... Etc/UTC
+    creating configuration files ... ok
+    running bootstrap script ... ok
+    performing post-bootstrap initialization ... ok
+    syncing data to disk ... ok
+    Setting up postgresql-18-jit (18.4-1.pgdg22.04+1) ...
+    Processing triggers for libc-bin (2.35-0ubuntu3.14) ...
+    Processing triggers for man-db (2.10.2-1) ...
+
+    Running kernel seems to be up-to-date.
+
+    No services need to be restarted.
+
+    No containers need to be restarted.
+
+    No user sessions are running outdated binaries.
+
+    No VM guests are running outdated hypervisor (qemu) binaries on this host.
+  stdout_lines: <omitted>
+
+TASK [Ensure PostgreSQL service is started and enabled] ********************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  enabled: true
+  name: postgresql
+  state: started
+  status:
+    ActiveEnterTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ActiveEnterTimestampMonotonic: '3215132828'
+    ActiveExitTimestamp: n/a
+    ActiveExitTimestampMonotonic: '0'
+    ActiveState: active
+    After: systemd-journald.socket basic.target postgresql@18-main.service system.slice sysinit.target
+    AllowIsolate: 'no'
+    AssertResult: 'yes'
+    AssertTimestamp: Sat 2026-08-08 09:19:36 UTC
+    AssertTimestampMonotonic: '3215128514'
+    Before: multi-user.target shutdown.target
+    BlockIOAccounting: 'no'
+    BlockIOWeight: '[not set]'
+    CPUAccounting: 'yes'
+    CPUAffinityFromNUMA: 'no'
+    CPUQuotaPerSecUSec: infinity
+    CPUQuotaPeriodUSec: infinity
+    CPUSchedulingPolicy: '0'
+    CPUSchedulingPriority: '0'
+    CPUSchedulingResetOnFork: 'no'
+    CPUShares: '[not set]'
+    CPUUsageNSec: '1264000'
+    CPUWeight: '[not set]'
+    CacheDirectoryMode: '0755'
+    CanFreeze: 'yes'
+    CanIsolate: 'no'
+    CanReload: 'yes'
+    CanStart: 'yes'
+    CanStop: 'yes'
+    CapabilityBoundingSet: cap_chown cap_dac_override cap_dac_read_search cap_fowner cap_fsetid cap_kill cap_setgid cap_setuid cap_setpcap cap_linux_immutable cap_net_bind_service cap_net_broadcast cap_net_admin cap_net_raw cap_ipc_lock cap_ipc_owner cap_sys_module cap_sys_rawio cap_sys_chroot cap_sys_ptrace cap_sys_pacct cap_sys_admin cap_sys_boot cap_sys_nice cap_sys_resource cap_sys_time cap_sys_tty_config cap_mknod cap_lease cap_audit_write cap_audit_control cap_setfcap cap_mac_override cap_mac_admin cap_syslog cap_wake_alarm cap_block_suspend cap_audit_read cap_perfmon cap_bpf cap_checkpoint_restore
+    CleanResult: success
+    CollectMode: inactive
+    ConditionResult: 'yes'
+    ConditionTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ConditionTimestampMonotonic: '3215128512'
+    ConfigurationDirectoryMode: '0755'
+    Conflicts: shutdown.target
+    ConsistsOf: postgresql@18-main.service
+    ControlPID: '0'
+    CoredumpFilter: '0x33'
+    DefaultDependencies: 'yes'
+    DefaultMemoryLow: '0'
+    DefaultMemoryMin: '0'
+    Delegate: 'no'
+    Description: PostgreSQL RDBMS
+    DevicePolicy: auto
+    DynamicUser: 'no'
+    ExecMainCode: '1'
+    ExecMainExitTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ExecMainExitTimestampMonotonic: '3215132673'
+    ExecMainPID: '13927'
+    ExecMainStartTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ExecMainStartTimestampMonotonic: '3215129297'
+    ExecMainStatus: '0'
+    ExecReload: '{ path=/bin/true ; argv[]=/bin/true ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecReloadEx: '{ path=/bin/true ; argv[]=/bin/true ; flags= ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecStart: '{ path=/bin/true ; argv[]=/bin/true ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecStartEx: '{ path=/bin/true ; argv[]=/bin/true ; flags= ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    FailureAction: none
+    FileDescriptorStoreMax: '0'
+    FinalKillSignal: '9'
+    FragmentPath: /lib/systemd/system/postgresql.service
+    FreezerState: running
+    GID: '[not set]'
+    GuessMainPID: 'yes'
+    IOAccounting: 'no'
+    IOReadBytes: '18446744073709551615'
+    IOReadOperations: '18446744073709551615'
+    IOSchedulingClass: '2'
+    IOSchedulingPriority: '4'
+    IOWeight: '[not set]'
+    IOWriteBytes: '18446744073709551615'
+    IOWriteOperations: '18446744073709551615'
+    IPAccounting: 'no'
+    IPEgressBytes: '[no data]'
+    IPEgressPackets: '[no data]'
+    IPIngressBytes: '[no data]'
+    IPIngressPackets: '[no data]'
+    Id: postgresql.service
+    IgnoreOnIsolate: 'no'
+    IgnoreSIGPIPE: 'yes'
+    InactiveEnterTimestamp: n/a
+    InactiveEnterTimestampMonotonic: '0'
+    InactiveExitTimestamp: Sat 2026-08-08 09:19:36 UTC
+    InactiveExitTimestampMonotonic: '3215129655'
+    InvocationID: 4746ab888d8c4abca05fbe99800c7eb8
+    JobRunningTimeoutUSec: infinity
+    JobTimeoutAction: none
+    JobTimeoutUSec: infinity
+    KeyringMode: private
+    KillMode: control-group
+    KillSignal: '15'
+    LimitAS: infinity
+    LimitASSoft: infinity
+    LimitCORE: infinity
+    LimitCORESoft: '0'
+    LimitCPU: infinity
+    LimitCPUSoft: infinity
+    LimitDATA: infinity
+    LimitDATASoft: infinity
+    LimitFSIZE: infinity
+    LimitFSIZESoft: infinity
+    LimitLOCKS: infinity
+    LimitLOCKSSoft: infinity
+    LimitMEMLOCK: '65536'
+    LimitMEMLOCKSoft: '65536'
+    LimitMSGQUEUE: '819200'
+    LimitMSGQUEUESoft: '819200'
+    LimitNICE: '0'
+    LimitNICESoft: '0'
+    LimitNOFILE: '524288'
+    LimitNOFILESoft: '1024'
+    LimitNPROC: '31581'
+    LimitNPROCSoft: '31581'
+    LimitRSS: infinity
+    LimitRSSSoft: infinity
+    LimitRTPRIO: '0'
+    LimitRTPRIOSoft: '0'
+    LimitRTTIME: infinity
+    LimitRTTIMESoft: infinity
+    LimitSIGPENDING: '31581'
+    LimitSIGPENDINGSoft: '31581'
+    LimitSTACK: infinity
+    LimitSTACKSoft: '8388608'
+    LoadState: loaded
+    LockPersonality: 'no'
+    LogLevelMax: '-1'
+    LogRateLimitBurst: '0'
+    LogRateLimitIntervalUSec: '0'
+    LogsDirectoryMode: '0755'
+    MainPID: '0'
+    ManagedOOMMemoryPressure: auto
+    ManagedOOMMemoryPressureLimit: '0'
+    ManagedOOMPreference: none
+    ManagedOOMSwap: auto
+    MemoryAccounting: 'yes'
+    MemoryAvailable: infinity
+    MemoryCurrent: '[not set]'
+    MemoryDenyWriteExecute: 'no'
+    MemoryHigh: infinity
+    MemoryLimit: infinity
+    MemoryLow: '0'
+    MemoryMax: infinity
+    MemoryMin: '0'
+    MemorySwapMax: infinity
+    MountAPIVFS: 'no'
+    NFileDescriptorStore: '0'
+    NRestarts: '0'
+    NUMAPolicy: n/a
+    Names: postgresql.service
+    NeedDaemonReload: 'no'
+    Nice: '0'
+    NoNewPrivileges: 'no'
+    NonBlocking: 'no'
+    NotifyAccess: none
+    OOMPolicy: stop
+    OOMScoreAdjust: '0'
+    OnFailureJobMode: replace
+    OnSuccessJobMode: fail
+    Perpetual: 'no'
+    PrivateDevices: 'no'
+    PrivateIPC: 'no'
+    PrivateMounts: 'no'
+    PrivateNetwork: 'no'
+    PrivateTmp: 'no'
+    PrivateUsers: 'no'
+    ProcSubset: all
+    PropagatesReloadTo: postgresql@18-main.service
+    ProtectClock: 'no'
+    ProtectControlGroups: 'no'
+    ProtectHome: 'no'
+    ProtectHostname: 'no'
+    ProtectKernelLogs: 'no'
+    ProtectKernelModules: 'no'
+    ProtectKernelTunables: 'no'
+    ProtectProc: default
+    ProtectSystem: 'no'
+    RefuseManualStart: 'no'
+    RefuseManualStop: 'no'
+    ReloadResult: success
+    RemainAfterExit: 'yes'
+    RemoveIPC: 'no'
+    Requires: system.slice sysinit.target
+    Restart: 'no'
+    RestartKillSignal: '15'
+    RestartUSec: 100ms
+    RestrictNamespaces: 'no'
+    RestrictRealtime: 'no'
+    RestrictSUIDSGID: 'no'
+    Result: success
+    RootDirectoryStartOnly: 'no'
+    RuntimeDirectoryMode: '0755'
+    RuntimeDirectoryPreserve: 'no'
+    RuntimeMaxUSec: infinity
+    SameProcessGroup: 'no'
+    SecureBits: '0'
+    SendSIGHUP: 'no'
+    SendSIGKILL: 'yes'
+    Slice: system.slice
+    StandardError: inherit
+    StandardInput: 'null'
+    StandardOutput: journal
+    StartLimitAction: none
+    StartLimitBurst: '5'
+    StartLimitIntervalUSec: 10s
+    StartupBlockIOWeight: '[not set]'
+    StartupCPUShares: '[not set]'
+    StartupCPUWeight: '[not set]'
+    StartupIOWeight: '[not set]'
+    StateChangeTimestamp: Sat 2026-08-08 09:19:36 UTC
+    StateChangeTimestampMonotonic: '3215132828'
+    StateDirectoryMode: '0755'
+    StatusErrno: '0'
+    StopWhenUnneeded: 'no'
+    SubState: exited
+    SuccessAction: none
+    SyslogFacility: '3'
+    SyslogLevel: '6'
+    SyslogLevelPrefix: 'yes'
+    SyslogPriority: '30'
+    SystemCallErrorNumber: '2147483646'
+    TTYReset: 'no'
+    TTYVHangup: 'no'
+    TTYVTDisallocate: 'no'
+    TasksAccounting: 'yes'
+    TasksCurrent: '[not set]'
+    TasksMax: '9474'
+    TimeoutAbortUSec: 1min 30s
+    TimeoutCleanUSec: infinity
+    TimeoutStartFailureMode: terminate
+    TimeoutStartUSec: infinity
+    TimeoutStopFailureMode: terminate
+    TimeoutStopUSec: 1min 30s
+    TimerSlackNSec: '50000'
+    Transient: 'no'
+    Type: oneshot
+    UID: '[not set]'
+    UMask: '0022'
+    UnitFilePreset: enabled
+    UnitFileState: enabled
+    UtmpMode: init
+    WantedBy: multi-user.target
+    Wants: postgresql@18-main.service
+    WatchdogSignal: '6'
+    WatchdogTimestamp: n/a
+    WatchdogTimestampMonotonic: '0'
+    WatchdogUSec: '0'
+
+TASK [Create benchmark directories] ****************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => (item=/var/bench) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-01] => (item=/var/bench/data) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/data
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/data
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-01] => (item=/var/bench/results) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/results
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-01] => (item=/var/bench/sql) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/sql
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/sql
+  size: 4096
+  state: directory
+  uid: 1000
+
+TASK [Tune PostgreSQL settings] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => (item={'key': 'listen_addresses', 'value': "'localhost'"}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: listen_addresses
+    value: '''localhost'''
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'shared_buffers', 'value': '2GB'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: shared_buffers
+    value: 2GB
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'effective_cache_size', 'value': '6GB'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: effective_cache_size
+    value: 6GB
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'work_mem', 'value': '256MB'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: work_mem
+    value: 256MB
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'maintenance_work_mem', 'value': '1GB'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: maintenance_work_mem
+    value: 1GB
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'max_parallel_workers_per_gather', 'value': '4'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: max_parallel_workers_per_gather
+    value: '4'
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'max_parallel_maintenance_workers', 'value': '4'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: max_parallel_maintenance_workers
+    value: '4'
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'max_worker_processes', 'value': '16'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: max_worker_processes
+    value: '16'
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'jit', 'value': 'off'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: jit
+    value: 'off'
+  msg: line replaced
+changed: [bench-vm-01] => (item={'key': 'random_page_cost', 'value': '1.1'}) => changed=true
+  ansible_loop_var: item
+  backup: ''
+  item:
+    key: random_page_cost
+    value: '1.1'
+  msg: line replaced
+
+RUNNING HANDLER [restart postgresql] ***************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  name: postgresql
+  state: started
+  status:
+    ActiveEnterTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ActiveEnterTimestampMonotonic: '3215132828'
+    ActiveExitTimestamp: n/a
+    ActiveExitTimestampMonotonic: '0'
+    ActiveState: active
+    After: systemd-journald.socket basic.target postgresql@18-main.service system.slice sysinit.target
+    AllowIsolate: 'no'
+    AssertResult: 'yes'
+    AssertTimestamp: Sat 2026-08-08 09:19:36 UTC
+    AssertTimestampMonotonic: '3215128514'
+    Before: multi-user.target shutdown.target
+    BlockIOAccounting: 'no'
+    BlockIOWeight: '[not set]'
+    CPUAccounting: 'yes'
+    CPUAffinityFromNUMA: 'no'
+    CPUQuotaPerSecUSec: infinity
+    CPUQuotaPeriodUSec: infinity
+    CPUSchedulingPolicy: '0'
+    CPUSchedulingPriority: '0'
+    CPUSchedulingResetOnFork: 'no'
+    CPUShares: '[not set]'
+    CPUUsageNSec: '1264000'
+    CPUWeight: '[not set]'
+    CacheDirectoryMode: '0755'
+    CanFreeze: 'yes'
+    CanIsolate: 'no'
+    CanReload: 'yes'
+    CanStart: 'yes'
+    CanStop: 'yes'
+    CapabilityBoundingSet: cap_chown cap_dac_override cap_dac_read_search cap_fowner cap_fsetid cap_kill cap_setgid cap_setuid cap_setpcap cap_linux_immutable cap_net_bind_service cap_net_broadcast cap_net_admin cap_net_raw cap_ipc_lock cap_ipc_owner cap_sys_module cap_sys_rawio cap_sys_chroot cap_sys_ptrace cap_sys_pacct cap_sys_admin cap_sys_boot cap_sys_nice cap_sys_resource cap_sys_time cap_sys_tty_config cap_mknod cap_lease cap_audit_write cap_audit_control cap_setfcap cap_mac_override cap_mac_admin cap_syslog cap_wake_alarm cap_block_suspend cap_audit_read cap_perfmon cap_bpf cap_checkpoint_restore
+    CleanResult: success
+    CollectMode: inactive
+    ConditionResult: 'yes'
+    ConditionTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ConditionTimestampMonotonic: '3215128512'
+    ConfigurationDirectoryMode: '0755'
+    Conflicts: shutdown.target
+    ConsistsOf: postgresql@18-main.service
+    ControlPID: '0'
+    CoredumpFilter: '0x33'
+    DefaultDependencies: 'yes'
+    DefaultMemoryLow: '0'
+    DefaultMemoryMin: '0'
+    Delegate: 'no'
+    Description: PostgreSQL RDBMS
+    DevicePolicy: auto
+    DynamicUser: 'no'
+    ExecMainCode: '1'
+    ExecMainExitTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ExecMainExitTimestampMonotonic: '3215132673'
+    ExecMainPID: '13927'
+    ExecMainStartTimestamp: Sat 2026-08-08 09:19:36 UTC
+    ExecMainStartTimestampMonotonic: '3215129297'
+    ExecMainStatus: '0'
+    ExecReload: '{ path=/bin/true ; argv[]=/bin/true ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecReloadEx: '{ path=/bin/true ; argv[]=/bin/true ; flags= ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecStart: '{ path=/bin/true ; argv[]=/bin/true ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecStartEx: '{ path=/bin/true ; argv[]=/bin/true ; flags= ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    FailureAction: none
+    FileDescriptorStoreMax: '0'
+    FinalKillSignal: '9'
+    FragmentPath: /lib/systemd/system/postgresql.service
+    FreezerState: running
+    GID: '[not set]'
+    GuessMainPID: 'yes'
+    IOAccounting: 'no'
+    IOReadBytes: '18446744073709551615'
+    IOReadOperations: '18446744073709551615'
+    IOSchedulingClass: '2'
+    IOSchedulingPriority: '4'
+    IOWeight: '[not set]'
+    IOWriteBytes: '18446744073709551615'
+    IOWriteOperations: '18446744073709551615'
+    IPAccounting: 'no'
+    IPEgressBytes: '[no data]'
+    IPEgressPackets: '[no data]'
+    IPIngressBytes: '[no data]'
+    IPIngressPackets: '[no data]'
+    Id: postgresql.service
+    IgnoreOnIsolate: 'no'
+    IgnoreSIGPIPE: 'yes'
+    InactiveEnterTimestamp: n/a
+    InactiveEnterTimestampMonotonic: '0'
+    InactiveExitTimestamp: Sat 2026-08-08 09:19:36 UTC
+    InactiveExitTimestampMonotonic: '3215129655'
+    InvocationID: 4746ab888d8c4abca05fbe99800c7eb8
+    JobRunningTimeoutUSec: infinity
+    JobTimeoutAction: none
+    JobTimeoutUSec: infinity
+    KeyringMode: private
+    KillMode: control-group
+    KillSignal: '15'
+    LimitAS: infinity
+    LimitASSoft: infinity
+    LimitCORE: infinity
+    LimitCORESoft: '0'
+    LimitCPU: infinity
+    LimitCPUSoft: infinity
+    LimitDATA: infinity
+    LimitDATASoft: infinity
+    LimitFSIZE: infinity
+    LimitFSIZESoft: infinity
+    LimitLOCKS: infinity
+    LimitLOCKSSoft: infinity
+    LimitMEMLOCK: '65536'
+    LimitMEMLOCKSoft: '65536'
+    LimitMSGQUEUE: '819200'
+    LimitMSGQUEUESoft: '819200'
+    LimitNICE: '0'
+    LimitNICESoft: '0'
+    LimitNOFILE: '524288'
+    LimitNOFILESoft: '1024'
+    LimitNPROC: '31581'
+    LimitNPROCSoft: '31581'
+    LimitRSS: infinity
+    LimitRSSSoft: infinity
+    LimitRTPRIO: '0'
+    LimitRTPRIOSoft: '0'
+    LimitRTTIME: infinity
+    LimitRTTIMESoft: infinity
+    LimitSIGPENDING: '31581'
+    LimitSIGPENDINGSoft: '31581'
+    LimitSTACK: infinity
+    LimitSTACKSoft: '8388608'
+    LoadState: loaded
+    LockPersonality: 'no'
+    LogLevelMax: '-1'
+    LogRateLimitBurst: '0'
+    LogRateLimitIntervalUSec: '0'
+    LogsDirectoryMode: '0755'
+    MainPID: '0'
+    ManagedOOMMemoryPressure: auto
+    ManagedOOMMemoryPressureLimit: '0'
+    ManagedOOMPreference: none
+    ManagedOOMSwap: auto
+    MemoryAccounting: 'yes'
+    MemoryAvailable: infinity
+    MemoryCurrent: '[not set]'
+    MemoryDenyWriteExecute: 'no'
+    MemoryHigh: infinity
+    MemoryLimit: infinity
+    MemoryLow: '0'
+    MemoryMax: infinity
+    MemoryMin: '0'
+    MemorySwapMax: infinity
+    MountAPIVFS: 'no'
+    NFileDescriptorStore: '0'
+    NRestarts: '0'
+    NUMAPolicy: n/a
+    Names: postgresql.service
+    NeedDaemonReload: 'no'
+    Nice: '0'
+    NoNewPrivileges: 'no'
+    NonBlocking: 'no'
+    NotifyAccess: none
+    OOMPolicy: stop
+    OOMScoreAdjust: '0'
+    OnFailureJobMode: replace
+    OnSuccessJobMode: fail
+    Perpetual: 'no'
+    PrivateDevices: 'no'
+    PrivateIPC: 'no'
+    PrivateMounts: 'no'
+    PrivateNetwork: 'no'
+    PrivateTmp: 'no'
+    PrivateUsers: 'no'
+    ProcSubset: all
+    PropagatesReloadTo: postgresql@18-main.service
+    ProtectClock: 'no'
+    ProtectControlGroups: 'no'
+    ProtectHome: 'no'
+    ProtectHostname: 'no'
+    ProtectKernelLogs: 'no'
+    ProtectKernelModules: 'no'
+    ProtectKernelTunables: 'no'
+    ProtectProc: default
+    ProtectSystem: 'no'
+    RefuseManualStart: 'no'
+    RefuseManualStop: 'no'
+    ReloadResult: success
+    RemainAfterExit: 'yes'
+    RemoveIPC: 'no'
+    Requires: system.slice sysinit.target
+    Restart: 'no'
+    RestartKillSignal: '15'
+    RestartUSec: 100ms
+    RestrictNamespaces: 'no'
+    RestrictRealtime: 'no'
+    RestrictSUIDSGID: 'no'
+    Result: success
+    RootDirectoryStartOnly: 'no'
+    RuntimeDirectoryMode: '0755'
+    RuntimeDirectoryPreserve: 'no'
+    RuntimeMaxUSec: infinity
+    SameProcessGroup: 'no'
+    SecureBits: '0'
+    SendSIGHUP: 'no'
+    SendSIGKILL: 'yes'
+    Slice: system.slice
+    StandardError: inherit
+    StandardInput: 'null'
+    StandardOutput: journal
+    StartLimitAction: none
+    StartLimitBurst: '5'
+    StartLimitIntervalUSec: 10s
+    StartupBlockIOWeight: '[not set]'
+    StartupCPUShares: '[not set]'
+    StartupCPUWeight: '[not set]'
+    StartupIOWeight: '[not set]'
+    StateChangeTimestamp: Sat 2026-08-08 09:19:36 UTC
+    StateChangeTimestampMonotonic: '3215132828'
+    StateDirectoryMode: '0755'
+    StatusErrno: '0'
+    StopWhenUnneeded: 'no'
+    SubState: exited
+    SuccessAction: none
+    SyslogFacility: '3'
+    SyslogLevel: '6'
+    SyslogLevelPrefix: 'yes'
+    SyslogPriority: '30'
+    SystemCallErrorNumber: '2147483646'
+    TTYReset: 'no'
+    TTYVHangup: 'no'
+    TTYVTDisallocate: 'no'
+    TasksAccounting: 'yes'
+    TasksCurrent: '[not set]'
+    TasksMax: '9474'
+    TimeoutAbortUSec: 1min 30s
+    TimeoutCleanUSec: infinity
+    TimeoutStartFailureMode: terminate
+    TimeoutStartUSec: infinity
+    TimeoutStopFailureMode: terminate
+    TimeoutStopUSec: 1min 30s
+    TimerSlackNSec: '50000'
+    Transient: 'no'
+    Type: oneshot
+    UID: '[not set]'
+    UMask: '0022'
+    UnitFilePreset: enabled
+    UnitFileState: enabled
+    UtmpMode: init
+    WantedBy: multi-user.target
+    Wants: postgresql@18-main.service
+    WatchdogSignal: '6'
+    WatchdogTimestamp: n/a
+    WatchdogTimestampMonotonic: '0'
+    WatchdogUSec: '0'
+
+PLAY [Install ClickHouse on bench-vm-02] ***********************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02]
+
+TASK [Install prerequisites] ***********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  cache_update_time: 1786180794
+  cache_updated: true
+
+TASK [Check ClickHouse apt key] ********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  stat:
+    exists: false
+
+TASK [Add ClickHouse apt key] **********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  cmd: |-
+    curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg
+  delta: '0:00:00.259057'
+  end: '2026-08-08 09:19:56.248614'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:19:55.989557'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Add ClickHouse apt repository] ***************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: abfe2ca2cfc60cb5463d334c013529fb2808d8e3
+  dest: /etc/apt/sources.list.d/clickhouse.list
+  gid: 0
+  group: root
+  md5sum: c61b86c135e4fb3c83076bdf68030197
+  mode: '0644'
+  owner: root
+  size: 107
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786180796.1819859-5590-39274261031351/source
+  state: file
+  uid: 0
+
+TASK [Install ClickHouse server and client] ********************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  cache_update_time: 1786180800
+  cache_updated: true
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: |-
+    Reading package lists...
+    Building dependency tree...
+    Reading state information...
+    The following additional packages will be installed:
+      clickhouse-common-static
+    Suggested packages:
+      clickhouse-common-static-dbg
+    The following NEW packages will be installed:
+      clickhouse-client clickhouse-common-static clickhouse-server
+    0 upgraded, 3 newly installed, 0 to remove and 4 not upgraded.
+    Need to get 0 B/237 MB of archives.
+    After this operation, 766 MB of additional disk space will be used.
+    Selecting previously unselected package clickhouse-common-static.
+    (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 94092 files and directories currently installed.)
+    Preparing to unpack .../clickhouse-common-static_26.7.3.19_amd64.deb ...
+    Unpacking clickhouse-common-static (26.7.3.19) ...
+    Selecting previously unselected package clickhouse-client.
+    Preparing to unpack .../clickhouse-client_26.7.3.19_amd64.deb ...
+    Unpacking clickhouse-client (26.7.3.19) ...
+    Selecting previously unselected package clickhouse-server.
+    Preparing to unpack .../clickhouse-server_26.7.3.19_amd64.deb ...
+    Unpacking clickhouse-server (26.7.3.19) ...
+    Setting up clickhouse-common-static (26.7.3.19) ...
+    Setting up clickhouse-server (26.7.3.19) ...
+    ClickHouse binary is already located at /usr/bin/clickhouse
+    Symlink /usr/bin/clickhouse-server already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-server to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-client already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-client to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-local already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-local to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-benchmark already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-benchmark to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-obfuscator already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-obfuscator to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-compressor already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-compressor to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-format already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-format to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-extract-from-config already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-extract-from-config to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-keeper already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-keeper to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-keeper-converter already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-keeper-converter to /usr/bin/clickhouse.
+    Symlink /usr/bin/clickhouse-chdig already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+    Creating symlink /usr/bin/clickhouse-chdig to /usr/bin/clickhouse.
+    Symlink /usr/bin/chdig already exists. Will keep it.
+    Symlink /usr/bin/ch already exists. Will keep it.
+    Symlink /usr/bin/chl already exists. Will keep it.
+    Symlink /usr/bin/chc already exists. Will keep it.
+    Creating clickhouse group if it does not exist.
+     groupadd -r 'clickhouse'
+    groupadd: group 'clickhouse' already exists
+    Creating clickhouse user if it does not exist.
+     useradd -r --shell /bin/false --home-dir /nonexistent -g 'clickhouse' 'clickhouse'
+    useradd: user 'clickhouse' already exists
+    Will set ulimits for clickhouse user in /etc/security/limits.d/clickhouse.conf.
+    Config file /etc/clickhouse-server/config.xml already exists, will keep it and extract path info from it.
+    /etc/clickhouse-server/config.xml has /var/lib/clickhouse/ as data path.
+    /etc/clickhouse-server/config.xml has /var/log/clickhouse-server/ as log path.
+    Users config file /etc/clickhouse-server/users.xml already exists, will keep it and extract users info from it.
+    Log directory /var/log/clickhouse-server/ already exists.
+    Data directory /var/lib/clickhouse/ already exists.
+    Creating pid directory /var/run/clickhouse-server.
+     chown -R 'clickhouse':'clickhouse' '/var/log/clickhouse-server/'
+     chown -R 'clickhouse':'clickhouse' '/var/run/clickhouse-server'
+     chown  'clickhouse':'clickhouse' '/var/lib/clickhouse/'
+    [1mPassword for the default user is an empty string. See /etc/clickhouse-server/users.xml and /etc/clickhouse-server/users.d to change it.[0m
+    Setting capabilities for clickhouse binary. This is optional.
+     chown -R 'clickhouse':'clickhouse' '/etc/clickhouse-server'
+
+    ClickHouse has been successfully installed.
+
+    Start clickhouse-server with:
+     sudo clickhouse start --pid-path /var/run/clickhouse-server --config-path /etc/clickhouse-server --binary-path /usr/bin
+
+    Start clickhouse-client with:
+     clickhouse-client
+
+    Synchronizing state of clickhouse-server.service with SysV service script with /lib/systemd/systemd-sysv-install.
+    Executing: /lib/systemd/systemd-sysv-install enable clickhouse-server
+    Created symlink /etc/systemd/system/multi-user.target.wants/clickhouse-server.service → /lib/systemd/system/clickhouse-server.service.
+    Setting up clickhouse-client (26.7.3.19) ...
+
+    Running kernel seems to be up-to-date.
+
+    No services need to be restarted.
+
+    No containers need to be restarted.
+
+    No user sessions are running outdated binaries.
+
+    No VM guests are running outdated hypervisor (qemu) binaries on this host.
+  stdout_lines: <omitted>
+
+TASK [Ensure ClickHouse service is started and enabled] ********************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  enabled: true
+  name: clickhouse-server
+  state: started
+  status:
+    ActiveEnterTimestamp: n/a
+    ActiveEnterTimestampMonotonic: '0'
+    ActiveExitTimestamp: n/a
+    ActiveExitTimestampMonotonic: '0'
+    ActiveState: inactive
+    After: time-sync.target sysinit.target systemd-journald.socket -.mount basic.target system.slice network-online.target
+    AllowIsolate: 'no'
+    AmbientCapabilities: cap_net_bind_service cap_net_admin cap_ipc_lock cap_sys_nice
+    AssertResult: 'no'
+    AssertTimestamp: n/a
+    AssertTimestampMonotonic: '0'
+    Before: shutdown.target multi-user.target
+    BlockIOAccounting: 'no'
+    BlockIOWeight: '[not set]'
+    CPUAccounting: 'yes'
+    CPUAffinityFromNUMA: 'no'
+    CPUQuotaPerSecUSec: infinity
+    CPUQuotaPeriodUSec: infinity
+    CPUSchedulingPolicy: '0'
+    CPUSchedulingPriority: '0'
+    CPUSchedulingResetOnFork: 'no'
+    CPUShares: '[not set]'
+    CPUUsageNSec: '[not set]'
+    CPUWeight: '[not set]'
+    CacheDirectoryMode: '0755'
+    CanClean: runtime
+    CanFreeze: 'yes'
+    CanIsolate: 'no'
+    CanReload: 'no'
+    CanStart: 'yes'
+    CanStop: 'yes'
+    CapabilityBoundingSet: cap_net_bind_service cap_net_admin cap_ipc_lock cap_sys_nice
+    CleanResult: success
+    CollectMode: inactive
+    ConditionResult: 'no'
+    ConditionTimestamp: n/a
+    ConditionTimestampMonotonic: '0'
+    ConfigurationDirectoryMode: '0755'
+    Conflicts: shutdown.target
+    ControlPID: '0'
+    CoredumpFilter: '0x33'
+    DefaultDependencies: 'yes'
+    DefaultMemoryLow: '0'
+    DefaultMemoryMin: '0'
+    Delegate: 'no'
+    Description: ClickHouse Server (analytic DBMS for big data)
+    DevicePolicy: auto
+    DynamicUser: 'no'
+    Environment: CLICKHOUSE_WATCHDOG_NO_FORWARD=1
+    EnvironmentFiles: /etc/default/clickhouse (ignore_errors=yes)
+    ExecMainCode: '0'
+    ExecMainExitTimestamp: n/a
+    ExecMainExitTimestampMonotonic: '0'
+    ExecMainPID: '0'
+    ExecMainStartTimestamp: n/a
+    ExecMainStartTimestampMonotonic: '0'
+    ExecMainStatus: '0'
+    ExecStart: '{ path=/usr/bin/clickhouse-server ; argv[]=/usr/bin/clickhouse-server --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.pid ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    ExecStartEx: '{ path=/usr/bin/clickhouse-server ; argv[]=/usr/bin/clickhouse-server --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.pid ; flags= ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'
+    FailureAction: none
+    FileDescriptorStoreMax: '0'
+    FinalKillSignal: '9'
+    FragmentPath: /lib/systemd/system/clickhouse-server.service
+    FreezerState: running
+    GID: '[not set]'
+    Group: clickhouse
+    GuessMainPID: 'yes'
+    IOAccounting: 'no'
+    IOReadBytes: '18446744073709551615'
+    IOReadOperations: '18446744073709551615'
+    IOSchedulingClass: '2'
+    IOSchedulingPriority: '4'
+    IOWeight: '[not set]'
+    IOWriteBytes: '18446744073709551615'
+    IOWriteOperations: '18446744073709551615'
+    IPAccounting: 'no'
+    IPEgressBytes: '[no data]'
+    IPEgressPackets: '[no data]'
+    IPIngressBytes: '[no data]'
+    IPIngressPackets: '[no data]'
+    Id: clickhouse-server.service
+    IgnoreOnIsolate: 'no'
+    IgnoreSIGPIPE: 'yes'
+    InactiveEnterTimestamp: n/a
+    InactiveEnterTimestampMonotonic: '0'
+    InactiveExitTimestamp: n/a
+    InactiveExitTimestampMonotonic: '0'
+    JobRunningTimeoutUSec: infinity
+    JobTimeoutAction: none
+    JobTimeoutUSec: infinity
+    KeyringMode: private
+    KillMode: control-group
+    KillSignal: '15'
+    LimitAS: infinity
+    LimitASSoft: infinity
+    LimitCORE: infinity
+    LimitCORESoft: infinity
+    LimitCPU: infinity
+    LimitCPUSoft: infinity
+    LimitDATA: infinity
+    LimitDATASoft: infinity
+    LimitFSIZE: infinity
+    LimitFSIZESoft: infinity
+    LimitLOCKS: infinity
+    LimitLOCKSSoft: infinity
+    LimitMEMLOCK: '65536'
+    LimitMEMLOCKSoft: '65536'
+    LimitMSGQUEUE: '819200'
+    LimitMSGQUEUESoft: '819200'
+    LimitNICE: '0'
+    LimitNICESoft: '0'
+    LimitNOFILE: '500000'
+    LimitNOFILESoft: '500000'
+    LimitNPROC: '31581'
+    LimitNPROCSoft: '31581'
+    LimitRSS: infinity
+    LimitRSSSoft: infinity
+    LimitRTPRIO: '0'
+    LimitRTPRIOSoft: '0'
+    LimitRTTIME: infinity
+    LimitRTTIMESoft: infinity
+    LimitSIGPENDING: '31581'
+    LimitSIGPENDINGSoft: '31581'
+    LimitSTACK: infinity
+    LimitSTACKSoft: '8388608'
+    LoadState: loaded
+    LockPersonality: 'no'
+    LogLevelMax: '-1'
+    LogRateLimitBurst: '0'
+    LogRateLimitIntervalUSec: '0'
+    LogsDirectoryMode: '0755'
+    MainPID: '0'
+    ManagedOOMMemoryPressure: auto
+    ManagedOOMMemoryPressureLimit: '0'
+    ManagedOOMPreference: none
+    ManagedOOMSwap: auto
+    MemoryAccounting: 'yes'
+    MemoryAvailable: infinity
+    MemoryCurrent: '[not set]'
+    MemoryDenyWriteExecute: 'no'
+    MemoryHigh: infinity
+    MemoryLimit: infinity
+    MemoryLow: '0'
+    MemoryMax: infinity
+    MemoryMin: '0'
+    MemorySwapMax: infinity
+    MountAPIVFS: 'no'
+    NFileDescriptorStore: '0'
+    NRestarts: '0'
+    NUMAPolicy: n/a
+    Names: clickhouse-server.service
+    NeedDaemonReload: 'no'
+    Nice: '0'
+    NoNewPrivileges: 'no'
+    NonBlocking: 'no'
+    NotifyAccess: main
+    OOMPolicy: stop
+    OOMScoreAdjust: '0'
+    OnFailureJobMode: replace
+    OnSuccessJobMode: fail
+    Perpetual: 'no'
+    PrivateDevices: 'no'
+    PrivateIPC: 'no'
+    PrivateMounts: 'no'
+    PrivateNetwork: 'no'
+    PrivateTmp: 'no'
+    PrivateUsers: 'no'
+    ProcSubset: all
+    ProtectClock: 'no'
+    ProtectControlGroups: 'no'
+    ProtectHome: 'no'
+    ProtectHostname: 'no'
+    ProtectKernelLogs: 'no'
+    ProtectKernelModules: 'no'
+    ProtectKernelTunables: 'no'
+    ProtectProc: default
+    ProtectSystem: 'no'
+    RefuseManualStart: 'no'
+    RefuseManualStop: 'no'
+    ReloadResult: success
+    RemainAfterExit: 'no'
+    RemoveIPC: 'no'
+    Requires: sysinit.target system.slice network-online.target -.mount
+    RequiresMountsFor: /run/clickhouse-server
+    Restart: always
+    RestartKillSignal: '15'
+    RestartUSec: 30s
+    RestrictNamespaces: 'no'
+    RestrictRealtime: 'no'
+    RestrictSUIDSGID: 'no'
+    Result: success
+    RootDirectoryStartOnly: 'no'
+    RuntimeDirectory: clickhouse-server
+    RuntimeDirectoryMode: '0755'
+    RuntimeDirectoryPreserve: 'no'
+    RuntimeMaxUSec: infinity
+    SameProcessGroup: 'no'
+    SecureBits: '0'
+    SendSIGHUP: 'no'
+    SendSIGKILL: 'yes'
+    Slice: system.slice
+    StandardError: inherit
+    StandardInput: 'null'
+    StandardOutput: journal
+    StartLimitAction: none
+    StartLimitBurst: '5'
+    StartLimitIntervalUSec: 10s
+    StartupBlockIOWeight: '[not set]'
+    StartupCPUShares: '[not set]'
+    StartupCPUWeight: '[not set]'
+    StartupIOWeight: '[not set]'
+    StateChangeTimestamp: n/a
+    StateChangeTimestampMonotonic: '0'
+    StateDirectoryMode: '0755'
+    StatusErrno: '0'
+    StopWhenUnneeded: 'no'
+    SubState: dead
+    SuccessAction: none
+    SyslogFacility: '3'
+    SyslogLevel: '6'
+    SyslogLevelPrefix: 'yes'
+    SyslogPriority: '30'
+    SystemCallErrorNumber: '2147483646'
+    TTYReset: 'no'
+    TTYVHangup: 'no'
+    TTYVTDisallocate: 'no'
+    TasksAccounting: 'yes'
+    TasksCurrent: '[not set]'
+    TasksMax: '9474'
+    TimeoutAbortUSec: infinity
+    TimeoutCleanUSec: infinity
+    TimeoutStartFailureMode: terminate
+    TimeoutStartUSec: infinity
+    TimeoutStopFailureMode: terminate
+    TimeoutStopUSec: infinity
+    TimerSlackNSec: '50000'
+    Transient: 'no'
+    Type: notify
+    UID: '[not set]'
+    UMask: '0022'
+    UnitFilePreset: enabled
+    UnitFileState: enabled
+    User: clickhouse
+    UtmpMode: init
+    WantedBy: multi-user.target
+    Wants: time-sync.target
+    WatchdogSignal: '6'
+    WatchdogTimestamp: n/a
+    WatchdogTimestampMonotonic: '0'
+    WatchdogUSec: infinity
+
+TASK [Create benchmark directories] ****************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => (item=/var/bench) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-02] => (item=/var/bench/data) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/data
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/data
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-02] => (item=/var/bench/results) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/results
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+changed: [bench-vm-02] => (item=/var/bench/sql) => changed=true
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/sql
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/sql
+  size: 4096
+  state: directory
+  uid: 1000
+
+TASK [Configure ClickHouse benchmark profile] ******************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  checksum: 751bcf6bd22c8b62f96ab82f03ae93279573338e
+  dest: /etc/clickhouse-server/users.d/benchmark.xml
+  gid: 999
+  group: clickhouse
+  mode: '0644'
+  owner: clickhouse
+  path: /etc/clickhouse-server/users.d/benchmark.xml
+  size: 172
+  state: file
+  uid: 999
+
+PLAY [Generate identical benchmark data on both VMs] ***********************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+ok: [bench-vm-02]
+
+TASK [Install curl for ClickHouse static binary download] ******************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cache_update_time: 1786180837
+  cache_updated: true
+ok: [bench-vm-02] => changed=false
+  cache_update_time: 1786180837
+  cache_updated: true
+
+TASK [Create benchmark directories] ****************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => (item=/var/bench) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-02] => (item=/var/bench) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-01] => (item=/var/bench/data) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/data
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/data
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-02] => (item=/var/bench/data) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/data
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/data
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-01] => (item=/var/bench/results) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/results
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-02] => (item=/var/bench/results) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/results
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-01] => (item=/var/bench/sql) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/sql
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/sql
+  size: 4096
+  state: directory
+  uid: 1000
+ok: [bench-vm-02] => (item=/var/bench/sql) => changed=false
+  ansible_loop_var: item
+  gid: 1000
+  group: ubuntu
+  item: /var/bench/sql
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/sql
+  size: 4096
+  state: directory
+  uid: 1000
+
+TASK [Install static ClickHouse binary for data generation] ****************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    set -e
+    cd /tmp
+    curl -fsSL https://clickhouse.com/ | sh
+    install -m 0755 clickhouse /usr/local/bin/clickhouse
+    rm -f clickhouse
+  delta: null
+  end: null
+  msg: Did not run command since '/usr/local/bin/clickhouse' exists
+  rc: 0
+  start: null
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: skipped, since /usr/local/bin/clickhouse exists
+  stdout_lines: <omitted>
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    set -e
+    cd /tmp
+    curl -fsSL https://clickhouse.com/ | sh
+    install -m 0755 clickhouse /usr/local/bin/clickhouse
+    rm -f clickhouse
+  delta: null
+  end: null
+  msg: Did not run command since '/usr/local/bin/clickhouse' exists
+  rc: 0
+  start: null
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: skipped, since /usr/local/bin/clickhouse exists
+  stdout_lines: <omitted>
+
+TASK [Generate users.csv] **************************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        number + 1 AS user_id,
+        18 + number % 50 AS age,
+        ['RU','US','DE','FR','CN','IN','BR','TR'][1 + number % 8] AS country_code,
+        toDate('2020-01-01') + number % 1500 AS signup_date
+    FROM numbers(1000000)
+    FORMAT CSV
+    " > /var/bench/data/users.csv
+  delta: '0:00:00.163613'
+  end: '2026-08-08 09:20:40.411220'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:40.247607'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => changed=true
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        number + 1 AS user_id,
+        18 + number % 50 AS age,
+        ['RU','US','DE','FR','CN','IN','BR','TR'][1 + number % 8] AS country_code,
+        toDate('2020-01-01') + number % 1500 AS signup_date
+    FROM numbers(1000000)
+    FORMAT CSV
+    " > /var/bench/data/users.csv
+  delta: '0:00:00.157018'
+  end: '2026-08-08 09:20:40.409573'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:40.252555'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Generate events CSV parts] *******************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => (item=0) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 0 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_0.csv
+  delta: '0:00:01.927510'
+  end: '2026-08-08 09:20:42.734867'
+  item: '0'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:40.807357'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=0) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 0 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_0.csv
+  delta: '0:00:02.773680'
+  end: '2026-08-08 09:20:43.581480'
+  item: '0'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:40.807800'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=1) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 10000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_1.csv
+  delta: '0:00:26.473627'
+  end: '2026-08-08 09:21:09.607428'
+  item: '1'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:43.133801'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=1) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 10000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_1.csv
+  delta: '0:00:27.809379'
+  end: '2026-08-08 09:21:11.800837'
+  item: '1'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:20:43.991458'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=2) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 20000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_2.csv
+  delta: '0:00:24.455738'
+  end: '2026-08-08 09:21:34.478966'
+  item: '2'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:21:10.023228'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=2) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 20000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_2.csv
+  delta: '0:00:25.434883'
+  end: '2026-08-08 09:21:37.623035'
+  item: '2'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:21:12.188152'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=3) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 30000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_3.csv
+  delta: '0:00:21.680126'
+  end: '2026-08-08 09:22:01.672354'
+  item: '3'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:21:39.992228'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=3) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 30000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_3.csv
+  delta: '0:00:25.958302'
+  end: '2026-08-08 09:22:05.798034'
+  item: '3'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:21:39.839732'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=4) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 40000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_4.csv
+  delta: '0:00:25.498778'
+  end: '2026-08-08 09:22:27.575472'
+  item: '4'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:22:02.076694'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=4) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 40000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_4.csv
+  delta: '0:00:25.568639'
+  end: '2026-08-08 09:22:31.774915'
+  item: '4'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:22:06.206276'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=5) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 50000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_5.csv
+  delta: '0:00:26.261855'
+  end: '2026-08-08 09:22:54.257878'
+  item: '5'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:22:27.996023'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=5) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 50000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_5.csv
+  delta: '0:00:23.827984'
+  end: '2026-08-08 09:22:57.706883'
+  item: '5'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:22:33.878899'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=6) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 60000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_6.csv
+  delta: '0:00:30.151293'
+  end: '2026-08-08 09:23:25.499800'
+  item: '6'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:22:55.348507'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=6) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 60000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_6.csv
+  delta: '0:00:26.126927'
+  end: '2026-08-08 09:23:26.570248'
+  item: '6'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:23:00.443321'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=7) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 70000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_7.csv
+  delta: '0:00:21.943879'
+  end: '2026-08-08 09:23:49.710125'
+  item: '7'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:23:27.766246'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=7) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 70000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_7.csv
+  delta: '0:00:23.720794'
+  end: '2026-08-08 09:23:51.768984'
+  item: '7'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:23:28.048190'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=8) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 80000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_8.csv
+  delta: '0:00:19.687987'
+  end: '2026-08-08 09:24:13.209114'
+  item: '8'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:23:53.521127'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=8) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 80000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_8.csv
+  delta: '0:00:27.919507'
+  end: '2026-08-08 09:24:18.039155'
+  item: '8'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:23:50.119648'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-01] => (item=9) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 90000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_9.csv
+  delta: '0:00:22.492409'
+  end: '2026-08-08 09:24:39.411073'
+  item: '9'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:16.918664'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=9) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    /usr/local/bin/clickhouse local --query "
+    SELECT
+        event_id,
+        1 + event_id % 1000000 AS user_id,
+        toDateTime('2025-01-01 00:00:00') + (event_id % 51840000) AS event_time,
+        ['view','search','click','cart','purchase','refund','login','logout'][1 + event_id % 8] AS event_type,
+        1 + event_id % 1000 AS category_id,
+        100 + event_id % 1000000 AS price_cents,
+        concat(
+            leftPad(lower(hex(event_id)), 16, '0'),
+            leftPad(lower(hex(event_id * 7)), 16, '0'),
+            leftPad(lower(hex(event_id * 13)), 16, '0'),
+            leftPad(lower(hex(event_id * 31)), 16, '0')
+        ) AS payload
+    FROM
+    (
+        SELECT 90000000 + number AS event_id
+        FROM numbers(10000000)
+    )
+    FORMAT CSV
+    " > /var/bench/data/events_9.csv
+  delta: '0:00:24.921327'
+  end: '2026-08-08 09:24:43.370250'
+  item: '9'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:18.448923'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Fix CSV permissions] *************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    find /var/bench/data -maxdepth 1 -type f -name '*.csv' -exec chmod 644 {} +
+  delta: '0:00:00.241357'
+  end: '2026-08-08 09:24:47.345131'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:47.103774'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    find /var/bench/data -maxdepth 1 -type f -name '*.csv' -exec chmod 644 {} +
+  delta: '0:00:01.740822'
+  end: '2026-08-08 09:24:47.408638'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:45.667816'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Show data directory size] ********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    du -sh /var/bench/data
+  delta: '0:00:00.425200'
+  end: '2026-08-08 09:24:48.326616'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:47.901416'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: "12G\t/var/bench/data"
+  stdout_lines: <omitted>
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    du -sh /var/bench/data
+  delta: '0:00:02.047913'
+  end: '2026-08-08 09:24:49.875882'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:47.827969'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: "12G\t/var/bench/data"
+  stdout_lines: <omitted>
+
+TASK [Print data directory size] *******************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] =>
+  msg: "bench-vm-01 data size: 12G\t/var/bench/data"
+ok: [bench-vm-02] =>
+  msg: "bench-vm-02 data size: 12G\t/var/bench/data"
+
+PLAY [Load data into PostgreSQL] *******************************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Copy PostgreSQL schema] **********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: 65dd4fa73793206183ec8c714ac0f885fb1bcff7
+  dest: /var/bench/sql/pg_schema.sql
+  gid: 0
+  group: root
+  md5sum: 5a55a7f9e0c1f9485d58e41687ea2978
+  mode: '0644'
+  owner: root
+  size: 493
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786181095.0719428-16475-185031868602239/source
+  state: file
+  uid: 0
+
+TASK [Copy PostgreSQL post-load script] ************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: c7cc85b1f6012ecebc3d6eddaeff9cfd2a1d2db0
+  dest: /var/bench/sql/pg_post_load.sql
+  gid: 0
+  group: root
+  md5sum: 62972d3f1f3c8e316547602a83e7b71f
+  mode: '0644'
+  owner: root
+  size: 264
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786181096.3027637-16490-113922814397508/source
+  state: file
+  uid: 0
+
+TASK [Create benchmark database if not exists] *****************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='bench'" | grep -q 1 || sudo -u postgres createdb bench
+  delta: '0:00:08.189763'
+  end: '2026-08-08 09:25:05.859101'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:24:57.669338'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Apply PostgreSQL schema] *********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  cmd: |-
+    sudo -u postgres psql -d bench -v ON_ERROR_STOP=1 -f /var/bench/sql/pg_schema.sql
+  delta: '0:00:00.058767'
+  end: '2026-08-08 09:25:06.355716'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 09:25:06.296949'
+  stderr: |-
+    psql:/var/bench/sql/pg_schema.sql:1: NOTICE:  table "events" does not exist, skipping
+    psql:/var/bench/sql/pg_schema.sql:2: NOTICE:  table "users" does not exist, skipping
+  stderr_lines: <omitted>
+  stdout: |-
+    DROP TABLE
+    DROP TABLE
+    CREATE TABLE
+    CREATE TABLE
+  stdout_lines: <omitted>
+
+TASK [Load users.csv into PostgreSQL] **************************************************************************************************************************************************************************************************************************************************
+ASYNC OK on bench-vm-01: jid=j22484529185.16734
+changed: [bench-vm-01] => changed=true
+  ansible_job_id: j22484529185.16734
+  cmd: |-
+    sudo -u postgres psql -d bench -v ON_ERROR_STOP=1 -c "COPY users FROM '/var/bench/data/users.csv' WITH (FORMAT csv, HEADER false)"
+  delta: '0:00:01.004372'
+  end: '2026-08-08 09:25:08.065167'
+  finished: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j22484529185.16734
+  start: '2026-08-08 09:25:07.060795'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: COPY 1000000
+  stdout_lines: <omitted>
+
+TASK [Parallel load events into PostgreSQL] ********************************************************************************************************************************************************************************************************************************************
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j150815532143.16801 started=1 finished=0
+ASYNC OK on bench-vm-01: jid=j150815532143.16801
+changed: [bench-vm-01] => changed=true
+  ansible_job_id: j150815532143.16801
+  cmd: |-
+    find /var/bench/data -maxdepth 1 -name 'events_*.csv' -print0 | xargs -0 -r -P 4 -I{} sudo -u postgres psql -d bench -v ON_ERROR_STOP=1 -c "COPY events FROM '{}' WITH (FORMAT csv, HEADER false)"
+  delta: '0:17:59.346094'
+  end: '2026-08-08 09:43:37.697719'
+  finished: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j150815532143.16801
+  start: '2026-08-08 09:25:38.351625'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: |-
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+    COPY 10000000
+  stdout_lines: <omitted>
+
+TASK [Create indexes and analyze PostgreSQL tables] ************************************************************************************************************************************************************************************************************************************
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j624813366119.17373 started=1 finished=0
+ASYNC OK on bench-vm-01: jid=j624813366119.17373
+changed: [bench-vm-01] => changed=true
+  ansible_job_id: j624813366119.17373
+  cmd: |-
+    sudo -u postgres psql -d bench -v ON_ERROR_STOP=1 -f /var/bench/sql/pg_post_load.sql
+  delta: '0:26:07.091552'
+  end: '2026-08-08 10:09:50.197693'
+  finished: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j624813366119.17373
+  start: '2026-08-08 09:43:43.106141'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: |-
+    ALTER TABLE
+    CREATE INDEX
+    CREATE INDEX
+    ANALYZE
+    ANALYZE
+  stdout_lines: <omitted>
+
+TASK [Count PostgreSQL events] *********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    sudo -u postgres psql -d bench -Atc "SELECT count(*) FROM events"
+  delta: '0:04:37.315563'
+  end: '2026-08-08 10:14:56.648654'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:10:19.333091'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: '100000000'
+  stdout_lines: <omitted>
+
+TASK [Count PostgreSQL users] **********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  cmd: |-
+    sudo -u postgres psql -d bench -Atc "SELECT count(*) FROM users"
+  delta: '0:00:00.281245'
+  end: '2026-08-08 10:14:57.358042'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:14:57.076797'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: '1000000'
+  stdout_lines: <omitted>
+
+TASK [Print PostgreSQL row counts] *****************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] =>
+  msg:
+  - 'PostgreSQL events count: 100000000'
+  - 'PostgreSQL users count: 1000000'
+
+PLAY [Load data into ClickHouse] *******************************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02]
+
+TASK [Copy ClickHouse schema] **********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: d5d11d0cbda053ed4e74ef2a0a404d9c1e31799c
+  dest: /var/bench/sql/ch_schema.sql
+  gid: 0
+  group: root
+  md5sum: e3f30a18d253fb5c685320ff3cec8382
+  mode: '0644'
+  owner: root
+  size: 560
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786184099.4316626-17633-262358482303023/source
+  state: file
+  uid: 0
+
+TASK [Create ClickHouse database] ******************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    clickhouse-client --query "CREATE DATABASE IF NOT EXISTS bench"
+  delta: '0:00:00.152848'
+  end: '2026-08-08 10:15:01.267671'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:15:01.114823'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Apply ClickHouse schema] *********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  cmd: |-
+    clickhouse-client --database bench --multiquery < /var/bench/sql/ch_schema.sql
+  delta: '0:00:00.108996'
+  end: '2026-08-08 10:15:01.802337'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:15:01.693341'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Load users.csv into ClickHouse] **************************************************************************************************************************************************************************************************************************************************
+ASYNC OK on bench-vm-02: jid=j638516369266.7834
+changed: [bench-vm-02] => changed=true
+  ansible_job_id: j638516369266.7834
+  cmd: |-
+    clickhouse-client --database bench --query="INSERT INTO users FORMAT CSV" < /var/bench/data/users.csv
+  delta: '0:00:00.610128'
+  end: '2026-08-08 10:15:03.096178'
+  finished: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j638516369266.7834
+  start: '2026-08-08 10:15:02.486050'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Parallel load events into ClickHouse] ********************************************************************************************************************************************************************************************************************************************
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC POLL on bench-vm-02: jid=j742713661329.7909 started=1 finished=0
+ASYNC OK on bench-vm-02: jid=j742713661329.7909
+changed: [bench-vm-02] => changed=true
+  ansible_job_id: j742713661329.7909
+  cmd: |-
+    find /var/bench/data -maxdepth 1 -name 'events_*.csv' -print0 | xargs -0 -r -P 4 -I{} sh -c 'clickhouse-client --database bench --query="INSERT INTO events FORMAT CSV" < "$1"' _ {}
+  delta: '0:05:44.199338'
+  end: '2026-08-08 10:21:18.559691'
+  finished: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j742713661329.7909
+  start: '2026-08-08 10:15:34.360353'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Count ClickHouse events] *********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    clickhouse-client --database bench --query "SELECT count() FROM events"
+  delta: '0:00:00.076516'
+  end: '2026-08-08 10:21:43.313817'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:21:43.237301'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: '100000000'
+  stdout_lines: <omitted>
+
+TASK [Count ClickHouse users] **********************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  cmd: |-
+    clickhouse-client --database bench --query "SELECT count() FROM users"
+  delta: '0:00:00.072816'
+  end: '2026-08-08 10:21:43.798213'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:21:43.725397'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: '1000000'
+  stdout_lines: <omitted>
+
+TASK [Print ClickHouse row counts] *****************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] =>
+  msg:
+  - 'ClickHouse events count: 100000000'
+  - 'ClickHouse users count: 1000000'
+
+PLAY [Benchmark PostgreSQL queries] ****************************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01]
+
+TASK [Ensure results directory exists] *************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => changed=false
+  gid: 1000
+  group: ubuntu
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+
+TASK [Copy PostgreSQL Q1 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: ddbbb48db10bf64f94d118a997bb314e7e0b2eb4
+  dest: /var/bench/sql/pg_q1_explain.sql
+  gid: 0
+  group: root
+  md5sum: 7161869fc0c02b0b1790040853629359
+  mode: '0644'
+  owner: root
+  size: 218
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786184506.5508473-17816-219131790843299/source
+  state: file
+  uid: 0
+
+TASK [Copy PostgreSQL Q2 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: 99fe63e3046cee570175f3ddf1e3c49f6f1702a9
+  dest: /var/bench/sql/pg_q2_explain.sql
+  gid: 0
+  group: root
+  md5sum: dcde15ec4dc99ac537819f0c80518764
+  mode: '0644'
+  owner: root
+  size: 356
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786184507.3909538-17831-83510686228668/source
+  state: file
+  uid: 0
+
+TASK [Copy PostgreSQL Q3 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: c60a082c71bb823e43f1d39e8e7b4c248695d0bb
+  dest: /var/bench/sql/pg_q3_explain.sql
+  gid: 0
+  group: root
+  md5sum: 079d8686d5f996ef3d77547236ab39a2
+  mode: '0644'
+  owner: root
+  size: 331
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786184508.2572482-17846-3593564200930/source
+  state: file
+  uid: 0
+
+TASK [Warmup PostgreSQL queries] *******************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-01] => (item=1) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q1_explain.sql > /dev/null
+    done
+  delta: '0:00:05.101697'
+  end: '2026-08-08 10:21:55.078240'
+  item: 1
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:21:49.976543'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ok: [bench-vm-01] => (item=2) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q2_explain.sql > /dev/null
+    done
+  delta: '0:04:45.478998'
+  end: '2026-08-08 10:26:40.978002'
+  item: 2
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:21:55.499004'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ok: [bench-vm-01] => (item=3) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q3_explain.sql > /dev/null
+    done
+  delta: '0:04:39.792668'
+  end: '2026-08-08 10:31:21.215113'
+  item: 3
+  msg: ''
+  rc: 0
+  start: '2026-08-08 10:26:41.422445'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Run PostgreSQL benchmark queries] ************************************************************************************************************************************************************************************************************************************************
+ASYNC OK on bench-vm-01: jid=j612399954545.18700
+changed: [bench-vm-01] => (item=1) => changed=true
+  ansible_job_id: j612399954545.18700
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q1_explain.sql > /var/bench/results/pg_q1_run${run}.txt
+    done
+  delta: '0:00:00.154162'
+  end: '2026-08-08 10:31:22.057461'
+  finished: 1
+  item: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j612399954545.18700
+  start: '2026-08-08 10:31:21.903299'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j296764973896.18779 started=1 finished=0
+ASYNC OK on bench-vm-01: jid=j296764973896.18779
+changed: [bench-vm-01] => (item=2) => changed=true
+  ansible_job_id: j296764973896.18779
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q2_explain.sql > /var/bench/results/pg_q2_run${run}.txt
+    done
+  delta: '0:14:18.288812'
+  end: '2026-08-08 10:46:12.081955'
+  finished: 1
+  item: 2
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j296764973896.18779
+  start: '2026-08-08 10:31:53.793143'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC POLL on bench-vm-01: jid=j976812009343.19246 started=1 finished=0
+ASYNC OK on bench-vm-01: jid=j976812009343.19246
+changed: [bench-vm-01] => (item=3) => changed=true
+  ansible_job_id: j976812009343.19246
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      sudo -u postgres psql -d bench -f /var/bench/sql/pg_q3_explain.sql > /var/bench/results/pg_q3_run${run}.txt
+    done
+  delta: '0:14:02.833599'
+  end: '2026-08-08 11:00:27.752691'
+  finished: 1
+  item: 3
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j976812009343.19246
+  start: '2026-08-08 10:46:24.919092'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+PLAY [Benchmark ClickHouse queries] ****************************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02]
+
+TASK [Ensure results directory exists] *************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => changed=false
+  gid: 1000
+  group: ubuntu
+  mode: '0755'
+  owner: ubuntu
+  path: /var/bench/results
+  size: 4096
+  state: directory
+  uid: 1000
+
+TASK [Copy ClickHouse Q1 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: 8b524baff5361af12cd397bc334c0f74e689b4bb
+  dest: /var/bench/sql/ch_q1.sql
+  gid: 0
+  group: root
+  md5sum: 7f227087001a1d2ddc7de665f5866899
+  mode: '0644'
+  owner: root
+  size: 183
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186859.2005656-18372-169739722169800/source
+  state: file
+  uid: 0
+
+TASK [Copy ClickHouse Q2 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: bcb835d6deff553b25c3061cb6cd940609315154
+  dest: /var/bench/sql/ch_q2.sql
+  gid: 0
+  group: root
+  md5sum: c15a70ea815bff57408861748271c690
+  mode: '0644'
+  owner: root
+  size: 345
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186860.0426488-18387-255990348316932/source
+  state: file
+  uid: 0
+
+TASK [Copy ClickHouse Q3 query] ********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: 82f28e80be90d76f418e0e5626bf95681bd2a104
+  dest: /var/bench/sql/ch_q3.sql
+  gid: 0
+  group: root
+  md5sum: a9aeccc42356f6f60949438d1fdaaaf5
+  mode: '0644'
+  owner: root
+  size: 353
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186860.8919666-18402-219958865707208/source
+  state: file
+  uid: 0
+
+TASK [Copy ClickHouse Q1 explain query] ************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: d5cd3a98c30121bcb5269365a89e0aa8393f305a
+  dest: /var/bench/sql/ch_q1_explain.sql
+  gid: 0
+  group: root
+  md5sum: 6a7f3576d4f409b7f6f19a648d091a14
+  mode: '0644'
+  owner: root
+  size: 196
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186861.7818477-18417-144273946069366/source
+  state: file
+  uid: 0
+
+TASK [Copy ClickHouse Q2 explain query] ************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: fe7b49cf3454238aed1a712fe233881c4ed63354
+  dest: /var/bench/sql/ch_q2_explain.sql
+  gid: 0
+  group: root
+  md5sum: fea92b713076ba0994e65c19c1949f67
+  mode: '0644'
+  owner: root
+  size: 358
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186862.6066284-18432-73742330044866/source
+  state: file
+  uid: 0
+
+TASK [Copy ClickHouse Q3 explain query] ************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => changed=true
+  checksum: a46ac5365d1db3664d4326e215a43628dae5a11d
+  dest: /var/bench/sql/ch_q3_explain.sql
+  gid: 0
+  group: root
+  md5sum: d3bb91d411835a5c66a082acbfbe04be
+  mode: '0644'
+  owner: root
+  size: 366
+  src: /home/ubuntu/.ansible/tmp/ansible-tmp-1786186863.45639-18447-257385683054611/source
+  state: file
+  uid: 0
+
+TASK [Warmup ClickHouse queries] *******************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02] => (item=1) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      clickhouse-client --database bench --queries-file /var/bench/sql/ch_q1.sql > /dev/null
+    done
+  delta: '0:00:00.101214'
+  end: '2026-08-08 11:01:05.683382'
+  item: 1
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:01:05.582168'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ok: [bench-vm-02] => (item=2) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      clickhouse-client --database bench --queries-file /var/bench/sql/ch_q2.sql > /dev/null
+    done
+  delta: '0:00:00.489858'
+  end: '2026-08-08 11:01:06.573258'
+  item: 2
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:01:06.083400'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ok: [bench-vm-02] => (item=3) => changed=false
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 1); do
+      clickhouse-client --database bench --queries-file /var/bench/sql/ch_q3.sql > /dev/null
+    done
+  delta: '0:00:01.033129'
+  end: '2026-08-08 11:01:08.033948'
+  item: 3
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:01:07.000819'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Run ClickHouse benchmark queries] ************************************************************************************************************************************************************************************************************************************************
+ASYNC OK on bench-vm-02: jid=j258264333688.8782
+changed: [bench-vm-02] => (item=1) => changed=true
+  ansible_job_id: j258264333688.8782
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      clickhouse-client    --database bench    --time    --queries-file /var/bench/sql/ch_q1.sql > /dev/null 2> /var/bench/results/ch_q1_run${run}.time
+    done
+  delta: '0:00:00.212727'
+  end: '2026-08-08 11:01:08.984830'
+  finished: 1
+  item: 1
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j258264333688.8782
+  start: '2026-08-08 11:01:08.772103'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ASYNC OK on bench-vm-02: jid=j961976661565.8877
+changed: [bench-vm-02] => (item=2) => changed=true
+  ansible_job_id: j961976661565.8877
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      clickhouse-client    --database bench    --time    --queries-file /var/bench/sql/ch_q2.sql > /dev/null 2> /var/bench/results/ch_q2_run${run}.time
+    done
+  delta: '0:00:00.730142'
+  end: '2026-08-08 11:01:41.772180'
+  finished: 1
+  item: 2
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j961976661565.8877
+  start: '2026-08-08 11:01:41.042038'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+ASYNC OK on bench-vm-02: jid=j348315270922.8973
+changed: [bench-vm-02] => (item=3) => changed=true
+  ansible_job_id: j348315270922.8973
+  ansible_loop_var: item
+  cmd: |-
+    for run in $(seq 1 3); do
+      clickhouse-client    --database bench    --time    --queries-file /var/bench/sql/ch_q3.sql > /dev/null 2> /var/bench/results/ch_q3_run${run}.time
+    done
+  delta: '0:00:02.799635'
+  end: '2026-08-08 11:02:16.054232'
+  finished: 1
+  item: 3
+  msg: ''
+  rc: 0
+  results_file: /root/.ansible_async/j348315270922.8973
+  start: '2026-08-08 11:02:13.254597'
+  started: 1
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Save ClickHouse explain plans] ***************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-02] => (item=1) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    clickhouse-client  --database bench  --queries-file /var/bench/sql/ch_q1_explain.sql > /var/bench/results/ch_q1_plan.txt
+  delta: '0:00:00.075530'
+  end: '2026-08-08 11:02:45.317407'
+  item: 1
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:02:45.241877'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=2) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    clickhouse-client  --database bench  --queries-file /var/bench/sql/ch_q2_explain.sql > /var/bench/results/ch_q2_plan.txt
+  delta: '0:00:00.074022'
+  end: '2026-08-08 11:02:45.817883'
+  item: 2
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:02:45.743861'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => (item=3) => changed=true
+  ansible_loop_var: item
+  cmd: |-
+    clickhouse-client  --database bench  --queries-file /var/bench/sql/ch_q3_explain.sql > /var/bench/results/ch_q3_plan.txt
+  delta: '0:00:00.075517'
+  end: '2026-08-08 11:02:46.318858'
+  item: 3
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:02:46.243341'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+PLAY [Fetch benchmark results to localhost] ********************************************************************************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************************************************************************************************************************************************************************************
+ok: [bench-vm-02]
+ok: [bench-vm-01]
+
+TASK [Archive results] *****************************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  cmd: |-
+    tar -czf /var/bench/results_bench-vm-01.tar.gz -C /var/bench/results .
+  delta: '0:00:00.024317'
+  end: '2026-08-08 11:02:49.166365'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:02:49.142048'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+changed: [bench-vm-02] => changed=true
+  cmd: |-
+    tar -czf /var/bench/results_bench-vm-02.tar.gz -C /var/bench/results .
+  delta: '0:00:00.018329'
+  end: '2026-08-08 11:02:49.166934'
+  msg: ''
+  rc: 0
+  start: '2026-08-08 11:02:49.148605'
+  stderr: ''
+  stderr_lines: <omitted>
+  stdout: ''
+  stdout_lines: <omitted>
+
+TASK [Fetch results archive] ***********************************************************************************************************************************************************************************************************************************************************
+changed: [bench-vm-01] => changed=true
+  checksum: 85996cfc54e76b11b194a0f2388556522d01421b
+  dest: /root/benchmark-ansible/results/bench-vm-01.tar.gz
+  md5sum: 1921acd0da4125243de05ac1646623ec
+  remote_checksum: 85996cfc54e76b11b194a0f2388556522d01421b
+  remote_md5sum: null
+changed: [bench-vm-02] => changed=true
+  checksum: ce3394bf85234dac5d9952fe2aba3e177a797e62
+  dest: /root/benchmark-ansible/results/bench-vm-02.tar.gz
+  md5sum: 15754b2bfdf264091947e5fa728af112
+  remote_checksum: ce3394bf85234dac5d9952fe2aba3e177a797e62
+  remote_md5sum: null
+
+PLAY RECAP *****************************************************************************************************************************************************************************************************************************************************************************
+bench-vm-01                : ok=39   changed=18   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0
+bench-vm-02                : ok=41   changed=21   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
