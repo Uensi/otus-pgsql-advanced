@@ -1,0 +1,111 @@
+---
+# Проверяем автоматический failover
+
+- name: "Шаг 1. Состояние до отказа + запись BEFORE"
+  hosts: ha_cluster
+  become: true
+  tasks:
+    - name: Determine node role via Patroni REST
+      ansible.builtin.uri:
+        url: "http://{{ private_ip }}:{{ patroni_rest_port }}/primary"
+        status_code: [200, 503]
+      register: role_check
+
+    - name: Set is_leader fact
+      ansible.builtin.set_fact:
+        is_leader: "{{ role_check.status == 200 }}"
+
+    - name: Show roles
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} => leader={{ is_leader }}"
+
+    - name: Create test table and write BEFORE row (leader only)
+      ansible.builtin.shell: |
+        sudo -u postgres psql -c "CREATE TABLE IF NOT EXISTS failover_test(id serial, written_by text, ts timestamptz DEFAULT now());"
+        sudo -u postgres psql -c "INSERT INTO failover_test(written_by) VALUES ('{{ inventory_hostname }}-BEFORE-failover');"
+      when: is_leader
+
+    - name: patronictl list (before)
+      ansible.builtin.shell: patronictl -c {{ patroni_config_dir }}/patroni.yml list
+      register: list_before
+      changed_when: false
+
+    - name: Show list (before)
+      ansible.builtin.debug:
+        msg: "{{ list_before.stdout_lines }}"
+
+- name: "Шаг 2. Останавливаем Patroni на лидере"
+  hosts: ha_cluster
+  become: true
+  tasks:
+    - name: Stop Patroni on leader node
+      ansible.builtin.systemd:
+        name: patroni
+        state: stopped
+      when: is_leader | default(false)
+
+- name: "Шаг 3. Ждём выборы нового лидера"
+  hosts: ha_cluster
+  become: true
+  tasks:
+    - name: Wait until cluster elects a new running Leader
+      ansible.builtin.shell: patronictl -c {{ patroni_config_dir }}/patroni.yml list -f json
+      register: cl
+      until:
+        - (cl.stdout | from_json | selectattr('Role', 'equalto', 'Leader') | list | length) == 1
+        - (cl.stdout | from_json | selectattr('Role', 'equalto', 'Leader') | first).State == 'running'
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Cluster state after failover
+      ansible.builtin.shell: patronictl -c {{ patroni_config_dir }}/patroni.yml list
+      register: list_after
+      changed_when: false
+
+    - name: Show state after failover
+      ansible.builtin.debug:
+        msg: "{{ list_after.stdout_lines }}"
+
+- name: "Шаг 4. Запись AFTER на новом лидере + чтение всех строк"
+  hosts: ha_cluster
+  become: true
+  tasks:
+    - name: Re-check role (ignore errors if node is stopped)
+      ansible.builtin.uri:
+        url: "http://{{ private_ip }}:{{ patroni_rest_port }}/primary"
+        status_code: [200, 503]
+      register: role_check2
+      failed_when: false  # <-- ВАЖНО: не падаем, если нода остановлена
+
+    - name: Write AFTER row and read table (new leader only)
+      ansible.builtin.shell: |
+        sudo -u postgres psql -c "INSERT INTO failover_test(written_by) VALUES ('{{ inventory_hostname }}-AFTER-failover');"
+        sudo -u postgres psql -c "TABLE failover_test;"
+      register: rows_after
+      when: role_check2.status | default(0) == 200
+
+    - name: Show rows (должны быть и BEFORE, и AFTER)
+      ansible.builtin.debug:
+        msg: "{{ rows_after.stdout_lines }}"
+      when: role_check2.status | default(0) == 200
+
+- name: "Шаг 5. Возвращаем старый лидер в кластер (станет репликой)"
+  hosts: ha_cluster
+  become: true
+  tasks:
+    # Запускаем Patroni на всех нодах, где он остановлен
+    - name: Start Patroni everywhere
+      ansible.builtin.systemd:
+        name: patroni
+        state: started
+
+    - name: Wait until all nodes report streaming or running
+      ansible.builtin.uri:
+        url: "http://{{ private_ip }}:{{ patroni_rest_port }}/cluster"
+        status_code: 200
+      register: cluster_ok
+      until: cluster_ok.status == 200
+      retries: 30
+      delay: 5
+

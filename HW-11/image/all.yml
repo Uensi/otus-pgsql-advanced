@@ -1,0 +1,24 @@
+---
+# PostgreSQL
+pg_version: "18"
+pg_bin_dir: "/usr/lib/postgresql/{{ pg_version }}/bin"
+pg_data_dir: /var/lib/postgresql/patroni
+pg_superuser_password: "1qaz!QAZ"
+pg_replication_password: "1qaz!QAZ"
+
+# etcd
+etcd_version: "3.5.14"
+etcd_data_dir: /var/lib/etcd
+etcd_client_port: 2379
+etcd_peer_port: 2380
+
+# Patroni
+patroni_scope: ha-cluster
+patroni_config_dir: /etc/patroni
+patroni_rest_port: 8008
+
+# HAProxy
+haproxy_rw_port: 5000
+haproxy_ro_port: 5001
+haproxy_stats_port: 7000
+

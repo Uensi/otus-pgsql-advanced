@@ -1,0 +1,22 @@
+---
+- name: Configure and start HAProxy
+  hosts: ha_cluster
+  become: true
+
+  tasks:
+    - name: Render HAProxy config
+      ansible.builtin.template:
+        src: templates/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        mode: "0644"
+
+    - name: Validate HAProxy config
+      ansible.builtin.command: haproxy -c -f /etc/haproxy/haproxy.cfg
+      changed_when: false
+
+    - name: Restart and enable HAProxy
+      ansible.builtin.systemd:
+        name: haproxy
+        state: restarted
+        enabled: true
+

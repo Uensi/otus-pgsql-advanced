@@ -1,0 +1,58 @@
+---
+- name: Configure and start etcd cluster
+  hosts: ha_cluster
+  become: true
+
+  tasks:
+    - name: Create etcd config directory
+      ansible.builtin.file:
+        path: /etc/etcd
+        state: directory
+        owner: etcd
+        group: etcd
+        mode: "0750"
+
+    - name: Render etcd config
+      ansible.builtin.template:
+        src: templates/etcd.yml.j2
+        dest: /etc/etcd/etcd.yml
+        owner: etcd
+        group: etcd
+        mode: "0640"
+
+    - name: Install etcd systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/etcd.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=etcd key-value store (DCS for Patroni)
+          After=network.target
+
+          [Service]
+          Type=notify
+          User=etcd
+          ExecStart=/usr/local/bin/etcd --config-file=/etc/etcd/etcd.yml
+          Restart=always
+          RestartSec=5
+          LimitNOFILE=65536
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd and start etcd
+      ansible.builtin.systemd:
+        name: etcd
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for etcd endpoint to be healthy
+      ansible.builtin.shell: |
+        etcdctl endpoint health --endpoints=http://{{ private_ip }}:{{ etcd_client_port }}
+      register: etcd_health
+      until: etcd_health.rc == 0
+      retries: 12
+      delay: 5
+      changed_when: false
+

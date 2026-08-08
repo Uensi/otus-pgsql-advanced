@@ -1,0 +1,96 @@
+---
+- name: Install HA stack (PostgreSQL 18 + Patroni + etcd + HAProxy)
+  hosts: ha_cluster
+  become: true
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - python3-pip
+          - haproxy
+          - acl
+        state: present
+        update_cache: true
+
+    - name: Add PostgreSQL apt key
+      ansible.builtin.shell: |
+        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+      args:
+        creates: /etc/apt/trusted.gpg.d/pgdg.gpg
+
+    - name: Add PostgreSQL apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pgdg.list
+        content: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+        mode: "0644"
+
+    - name: Install PostgreSQL {{ pg_version }}
+      ansible.builtin.apt:
+        name:
+          - postgresql-{{ pg_version }}
+          - postgresql-client-{{ pg_version }}
+        state: present
+        update_cache: true
+
+    # Стандартный кластер PGDG занимает порт 5432, он нам не нужен, кластером будет управлять Patroni.
+    - name: Stop and disable default PostgreSQL service
+      ansible.builtin.systemd:
+        name: postgresql
+        state: stopped
+        enabled: false
+
+    - name: Drop default PostgreSQL cluster (free port 5432 for Patroni)
+      ansible.builtin.command: pg_dropcluster --stop {{ pg_version }} main
+      failed_when: false
+      changed_when: false
+
+    - name: Install Patroni via pip
+      ansible.builtin.pip:
+        name:
+          - patroni[etcd3]
+          - psycopg2-binary
+        state: present
+
+    - name: Create etcd user
+      ansible.builtin.user:
+        name: etcd
+        system: true
+        shell: /usr/sbin/nologin
+        home: "{{ etcd_data_dir }}"
+
+    - name: Create etcd data directory
+      ansible.builtin.file:
+        path: "{{ etcd_data_dir }}"
+        state: directory
+        owner: etcd
+        group: etcd
+        mode: "0750"
+
+    - name: Download and unpack etcd
+      ansible.builtin.unarchive:
+        src: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
+        dest: /tmp
+        remote_src: true
+
+    - name: Install etcd binaries
+      ansible.builtin.copy:
+        src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        remote_src: true
+        mode: "0755"
+      loop:
+        - etcd
+        - etcdctl
+
+    - name: Create Patroni config directory
+      ansible.builtin.file:
+        path: "{{ patroni_config_dir }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0750"

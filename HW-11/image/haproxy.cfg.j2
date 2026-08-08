@@ -1,0 +1,46 @@
+global
+    maxconn 1024
+    log /dev/log local0
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 5s
+    timeout client  60s
+    timeout server  60s
+
+# ---------- WRITE: только на Leader ----------
+frontend ft_pg_rw
+    bind *:{{ haproxy_rw_port }}
+    default_backend bk_pg_rw
+
+backend bk_pg_rw
+    option httpchk GET /primary
+    http-check expect status 200
+    default-server inter 3s fall 3 rise 2 downinter 2s
+{% for host in groups['ha_cluster'] %}
+    server {{ host }} {{ hostvars[host]['private_ip'] }}:5432 maxconn 200 check port {{ patroni_rest_port }}
+{% endfor %}
+
+# ---------- READ: только на Replica ----------
+frontend ft_pg_ro
+    bind *:{{ haproxy_ro_port }}
+    default_backend bk_pg_ro
+
+backend bk_pg_ro
+    balance roundrobin
+    option httpchk GET /replica
+    http-check expect status 200
+    default-server inter 3s fall 3 rise 2 downinter 2s
+{% for host in groups['ha_cluster'] %}
+    server {{ host }} {{ hostvars[host]['private_ip'] }}:5432 maxconn 200 check port {{ patroni_rest_port }}
+{% endfor %}
+
+# ---------- STATS ----------
+listen stats
+    bind *:{{ haproxy_stats_port }}
+    mode http
+    stats enable
+    stats uri /
+    stats refresh 5s

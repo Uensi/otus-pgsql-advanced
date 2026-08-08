@@ -1,0 +1,21 @@
+---
+- name: Verify HA cluster status
+  hosts: ha_cluster[0]
+  become: true
+
+  tasks:
+    - name: Wait for cluster to converge (1 Leader + 2 Replica)
+      ansible.builtin.shell: |
+        patronictl -c {{ patroni_config_dir }}/patroni.yml list
+      register: patroni_list
+      until:
+        - patroni_list.stdout is search("Leader")
+        - (patroni_list.stdout | regex_findall('Replica') | length) == 2
+      retries: 24
+      delay: 5
+      changed_when: false
+
+    - name: Show Patroni cluster status
+      ansible.builtin.debug:
+        msg: "{{ patroni_list.stdout_lines }}"
+

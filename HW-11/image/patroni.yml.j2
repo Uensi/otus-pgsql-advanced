@@ -1,0 +1,69 @@
+scope: {{ patroni_scope }}
+name: {{ inventory_hostname }}
+
+restapi:
+  listen: {{ private_ip }}:{{ patroni_rest_port }}
+  connect_address: {{ private_ip }}:{{ patroni_rest_port }}
+
+etcd3:
+  hosts: {% for host in groups['ha_cluster'] %}{{ hostvars[host]['private_ip'] }}:{{ etcd_client_port }}{% if not loop.last %},{% endif %}{% endfor %}
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        listen_addresses: 0.0.0.0
+        port: 5432
+        max_connections: 200
+        shared_buffers: 1GB
+        work_mem: 64MB
+        maintenance_work_mem: 256MB
+        wal_level: replica
+        max_wal_senders: 10
+        max_replication_slots: 10
+        hot_standby: on
+        wal_keep_size: 512MB
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - local all all trust
+    - host all all 127.0.0.1/32 scram-sha-256
+    - host all all 10.1.0.0/22 scram-sha-256
+    - host replication all 10.1.0.0/22 scram-sha-256
+
+  users:
+    postgres:
+      password: "{{ pg_superuser_password }}"
+      options:
+        - superuser
+    replicator:
+      password: "{{ pg_replication_password }}"
+      options:
+        - replication
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: {{ private_ip }}:5432
+  data_dir: {{ pg_data_dir }}
+  bin_dir: {{ pg_bin_dir }}
+  pgpass: /var/lib/postgresql/pgpass
+  authentication:
+    superuser:
+      username: postgres
+      password: "{{ pg_superuser_password }}"
+    replication:
+      username: replicator
+      password: "{{ pg_replication_password }}"
+    rewind:
+      username: postgres
+      password: "{{ pg_superuser_password }}"
+

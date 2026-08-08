@@ -1,0 +1,7 @@
+---
+- import_playbook: install_ha.yml
+- import_playbook: configure_etcd.yml
+- import_playbook: configure_patroni.yml
+- import_playbook: configure_haproxy.yml
+- import_playbook: verify.yml
+
