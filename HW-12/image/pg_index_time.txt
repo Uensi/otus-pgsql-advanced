@@ -1,0 +1,1 @@
+PG index time: 871 seconds
