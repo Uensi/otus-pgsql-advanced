@@ -1,0 +1,40 @@
+# Общие переменные
+
+# --- Версии и пути ---
+pg_version: "16"
+yb_version: "2.20"
+gp_version: "6.25"
+
+# --- Данные ---
+data_dir: /var/bench/data
+results_dir: /var/bench/results
+csv_name: chicago_taxi_migrate.csv
+csv_path: "{{ data_dir }}/{{ csv_name }}"
+db_name: benchdb
+table_name: chicago_taxi
+row_count: 70000000
+
+# --- Сеть ---
+internal_cidr: "10.2.0.0/16"
+
+# --- Пользователи ---
+gp_user: gpadmin
+yb_user: yugabyte
+pg_user: postgres
+
+# --- Путь к Greenplum (переживает --start-at-task) ---
+gp_home: /opt/greenplum-db-{{ gp_version }}
+gp_home_actual: "{{ gp_home }}"
+gp_master_data_dir: /data/master/gpseg-1
+gp_seg_data_dir: /data/primary
+gp_master_port: 5432
+gp_seg_port_base: 6000
+
+# --- YugabyteDB ---
+yb_master_port: 7100
+yb_ysql_port: 5433
+
+# --- Таймауты (сек) ---
+timeout_data_load: 3600
+timeout_index: 1800
+timeout_benchmark: 600
