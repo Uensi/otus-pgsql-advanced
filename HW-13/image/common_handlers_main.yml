@@ -1,0 +1,3 @@
+---
+- name: generate locale
+  ansible.builtin.shell: locale-gen

@@ -1,0 +1,52 @@
+---
+- name: Add PGDG key
+  ansible.builtin.shell: |
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+  args: { creates: /usr/share/keyrings/pgdg.gpg }
+
+- name: Add PGDG repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+
+- name: Install PostgreSQL {{ pg_version }}
+  ansible.builtin.apt:
+    name: ["postgresql-{{ pg_version }}", "postgresql-client-{{ pg_version }}"]
+    state: present
+    update_cache: true
+
+- name: Tune postgresql.conf
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ pg_version }}/main/conf.d/zzz-bench.conf"
+    create: true
+    line: "{{ item }}"
+  loop:
+    - "shared_buffers = '2GB'"
+    - "maintenance_work_mem = '1GB'"
+    - "max_parallel_maintenance_workers = 4"
+    - "max_parallel_workers_per_gather = 4"
+    - "max_worker_processes = 8"
+    - "wal_level = 'minimal'"
+    - "max_wal_senders = 0"
+    - "synchronous_commit = off"
+    - "listen_addresses = '*'"
+  notify: restart pg
+
+- name: Allow connections in pg_hba
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ pg_version }}/main/pg_hba.conf"
+    line: "host all all 10.2.0.0/16 md5"
+  notify: restart pg
+
+- name: Ensure PostgreSQL is running
+  ansible.builtin.systemd:
+    name: "postgresql@{{ pg_version }}-main"
+    state: started
+    enabled: true
+
+- name: Create database and schema
+  ansible.builtin.shell: |
+    sudo -u postgres psql -c "DROP DATABASE IF EXISTS {{ db_name }};"
+    sudo -u postgres psql -c "CREATE DATABASE {{ db_name }};"
+    sudo -u postgres psql -d {{ db_name }} -c "CREATE TABLE IF NOT EXISTS {{ table_name }} (taxi_id INT, trip_start_timestamp TIMESTAMP, trip_end_timestamp TIMESTAMP, trip_seconds INT, trip_miles NUMERIC, fare NUMERIC, tips NUMERIC, tolls NUMERIC, extras NUMERIC, trip_total NUMERIC, payment_type TEXT, company TEXT, pickup_community_area INT, dropoff_community_area INT);"
+  changed_when: false

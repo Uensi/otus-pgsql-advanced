@@ -1,0 +1,105 @@
+---
+# Генерация датасета 70M строк
+
+- name: Check if CSV already exists and is complete
+  ansible.builtin.stat:
+    path: "{{ csv_path }}"
+  register: csv_stat
+
+- name: Check if CSV has expected size (> 7GB)
+  ansible.builtin.set_fact:
+    csv_is_complete: "{{ csv_stat.stat.exists and csv_stat.stat.size | int > 7000000000 }}"
+
+# Генерация в фоне с маркером DONE
+- name: Generate data in background (if not already done)
+  ansible.builtin.shell: |
+    rm -f {{ results_dir }}/gen_done.txt
+    nohup bash -c '
+      sudo -u postgres psql -d {{ db_name }} -c "
+        INSERT INTO {{ table_name }}
+        SELECT
+          1 + (n % 100000),
+          ('2015-01-01'::timestamp + (n % 31536000) * interval '1 second'),
+          ('1015-01-01'::timestamp + (n % 31536000 + 1800) * interval '1 second'),
+          (n % 7200)::int,
+          (n % 50)::numeric,
+          (10 + n % 100)::numeric,
+          (n % 20)::numeric,
+          (n % 5)::numeric,
+          (n % 10)::numeric,
+          (10 + n % 130)::numeric,
+          CASE n % 4 WHEN 0 THEN 'Cash' WHEN 1 THEN 'Credit Card'
+                     WHEN 2 THEN 'Mobile' ELSE 'Prepaid' END,
+          'Company ' || (n % 500)::text,
+          (1 + n % 77)::int,
+          (1 + (n / 77) % 77)::int
+        FROM generate_series(1, {{ row_count }}) n;"
+      echo DONE > {{ results_dir }}/gen_done.txt
+    ' > /var/log/dataset_gen.log 2>&1 &
+  when: not csv_is_complete
+
+- name: Wait for generation to complete
+  ansible.builtin.shell: cat {{ results_dir }}/gen_done.txt
+  register: gen_done
+  until: gen_done.stdout == "DONE"
+  retries: "{{ (timeout_data_load / 30) | int }}"
+  delay: 30
+  when: not csv_is_complete
+
+# Индексация
+- name: Create indexes (with timing)
+  ansible.builtin.shell: |
+    rm -f {{ results_dir }}/pg_index_time.txt {{ results_dir }}/index_done.txt
+    nohup bash -c '
+      start=$(date +%s)
+      sudo -u postgres psql -d {{ db_name }} -c "VACUUM ANALYZE {{ table_name }};"
+      sudo -u postgres psql -d {{ db_name }} -c "CREATE INDEX IF NOT EXISTS idx_taxi_id ON {{ table_name }}(taxi_id);"
+      sudo -u postgres psql -d {{ db_name }} -c "CREATE INDEX IF NOT EXISTS idx_dates ON {{ table_name }}(trip_start_timestamp, trip_end_timestamp);"
+      end=$(date +%s)
+      echo "PG index time: $((end - start)) seconds" > {{ results_dir }}/pg_index_time.txt
+      echo DONE > {{ results_dir }}/index_done.txt
+    ' > /var/log/index_gen.log 2>&1 &
+  when: not csv_is_complete
+
+- name: Wait for indexing
+  ansible.builtin.shell: cat {{ results_dir }}/index_done.txt
+  register: index_done
+  until: index_done.stdout == "DONE"
+  retries: "{{ (timeout_index / 30) | int }}"
+  delay: 30
+  when: not csv_is_complete
+
+# Экспорт в csv
+- name: Export to CSV (if not already exists)
+  ansible.builtin.shell: |
+    rm -f {{ results_dir }}/pg_export_time.txt {{ results_dir }}/export_done.txt {{ results_dir }}/csv_size.txt
+    nohup bash -c '
+      start=$(date +%s)
+      sudo -u postgres psql -d {{ db_name }} -c "\COPY {{ table_name }} TO '\"'\"'{{ csv_path }}'\"'\"' WITH (FORMAT csv);"
+      end=$(date +%s)
+      echo "PG export time: $((end - start)) seconds" > {{ results_dir }}/pg_export_time.txt
+      stat -c '%s' {{ csv_path }} > {{ results_dir }}/csv_size.txt
+      echo DONE > {{ results_dir }}/export_done.txt
+    ' > /var/log/csv_export.log 2>&1 &
+  when: not csv_is_complete
+
+- name: Wait for export
+  ansible.builtin.shell: cat {{ results_dir }}/export_done.txt
+  register: export_done
+  until: export_done.stdout == "DONE"
+  retries: "{{ (timeout_data_load / 30) | int }}"
+  delay: 30
+  when: not csv_is_complete
+
+# Сбор данных
+- name: Collect PG count
+  ansible.builtin.shell: |
+    sudo -u postgres psql -d {{ db_name }} -tAc "SELECT count(*) FROM {{ table_name }};" \
+      > {{ results_dir }}/pg_count.txt
+  changed_when: true
+
+- name: Collect PG table size
+  ansible.builtin.shell: |
+    sudo -u postgres psql -d {{ db_name }} -tAc "SELECT pg_size_pretty(pg_total_relation_size('{{ table_name }}'));" \
+      > {{ results_dir }}/pg_size.txt
+  changed_when: true

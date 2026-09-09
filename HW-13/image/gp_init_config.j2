@@ -1,0 +1,11 @@
+ARRAY_NAME="Greenplum Cluster"
+SEG_PREFIX=gpseg
+PORT_BASE={{ gp_segment_ports[0] }}
+declare -a DATA_DIRECTORY=({{ gp_data }}/primary)
+MASTER_HOSTNAME={{ inventory_hostname }}
+MASTER_DIRECTORY={{ gp_data }}/master
+MASTER_PORT={{ gp_port }}
+TRUSTED_SHELL=ssh
+ENCODING=UNICODE
+DATABASE_NAME={{ db_name }}
+declare -a MACHINE_LIST=({% for h in groups['greenplum_segments'] %}{{ h }} {% endfor %})

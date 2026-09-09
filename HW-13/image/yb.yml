@@ -1,0 +1,66 @@
+---
+# YugabyteDB - установка на все 3 ноды
+
+- name: Create yugabyte user
+  ansible.builtin.user:
+    name: "{{ yb_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Download YugabyteDB
+  ansible.builtin.get_url:
+    url: "https://downloads.yugabyte.com/releases/{{ yb_version }}/yugabyte-{{ yb_version }}-linux-x86_64.tar.gz"
+    dest: /tmp/yugabyte.tar.gz
+    mode: "0644"
+
+- name: Extract YugabyteDB
+  ansible.builtin.unarchive:
+    src: /tmp/yugabyte.tar.gz
+    dest: /opt/
+    remote_src: true
+    creates: /opt/yugabyte-{{ yb_version }}
+
+- name: Symlink yb-ctl
+  ansible.builtin.file:
+    src: "/opt/yugabyte-{{ yb_version }}/bin/yb-ctl"
+    dest: /usr/local/bin/yb-ctl
+    state: link
+
+# Инициализация кластера, только на первой ноде
+
+- name: Init cluster on first node
+  ansible.builtin.shell: |
+    su - {{ yb_user }} -c "
+      yb-ctl create --rf 3 \
+        --tserver_flags 'ysql_enable_auth=false' \
+        --master_flags 'placement_cloud=yc,placement_region=ru-central1,placement_zone={{ inventory_hostname }}'
+    "
+  when: inventory_hostname == groups['yugabyte'][0]
+  args:
+    creates: "/home/{{ yb_user }}/yugabyte-data"
+
+# Создание таблицы
+
+- name: Create database and table
+  ansible.builtin.shell: |
+    ysqlsh -h localhost -p {{ yb_ysql_port }} -c "
+      CREATE DATABASE IF NOT EXISTS {{ db_name }};"
+    ysqlsh -h localhost -p {{ yb_ysql_port }} -d {{ db_name }} -c "
+      CREATE TABLE IF NOT EXISTS {{ table_name }} (
+        taxi_id INT,
+        trip_start_timestamp TIMESTAMP,
+        trip_end_timestamp TIMESTAMP,
+        trip_seconds INT,
+        trip_miles NUMERIC,
+        fare NUMERIC,
+        tips NUMERIC,
+        tolls NUMERIC,
+        extras NUMERIC,
+        trip_total NUMERIC,
+        payment_type TEXT,
+        company TEXT,
+        pickup_community_area INT,
+        dropoff_community_area INT
+      );"
+  when: inventory_hostname == groups['yugabyte'][0]
+  changed_when: true

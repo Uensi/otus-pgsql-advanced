@@ -1,0 +1,64 @@
+---
+# Базовая настройка ОС 
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  async: 300
+  poll: 5
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - wget
+      - curl
+      - rsync
+      - tar
+      - gzip
+      - htop
+      - iotop
+      - sysstat
+      - jq
+    state: present
+
+- name: Create results directory
+  ansible.builtin.file:
+    path: "{{ results_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Create data directory
+  ansible.builtin.file:
+    path: "{{ data_dir }}"
+    state: directory
+    mode: "0755"
+
+# Sysctl тюнинг для Greenplum и YugabyteDB
+- name: Apply sysctl tuning
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    reload: true
+    state: present
+  loop:
+    - { name: kernel.shmmax, value: '500000000' }
+    - { name: kernel.shmmni, value: '4096' }
+    - { name: kernel.shmall, value: '4000000000' }
+    - { name: kernel.sem, value: '250 32000 100 128' }
+    - { name: kernel.msgmnb, value: '65536' }
+    - { name: kernel.msgmax, value: '65536' }
+    - { name: kernel.msgmni, value: '2048' }
+    - { name: vm.overcommit_memory, value: '0' }
+    - { name: vm.overcommit_ratio, value: '95' }
+    - { name: net.ipv4.tcp_tw_reuse, value: '1' }
+    - { name: net.ipv4.ip_local_port_range, value: '10000 65535' }
+
+# SSH-ключи для внутренних коммуникаций
+- name: Generate SSH key if not exists
+  ansible.builtin.shell: |
+    if [ ! -f ~/.ssh/id_rsa ]; then
+      ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa -q
+    fi
+  args:
+    creates: ~/.ssh/id_rsa.pub

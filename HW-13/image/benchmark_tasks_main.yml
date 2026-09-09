@@ -1,0 +1,43 @@
+---
+# Бенчмарка для всех СУБД
+
+- name: Set connection params
+  ansible.builtin.set_fact:
+    bench_conn: >-
+      {% if bench_target == 'pg' %}sudo -u postgres psql -d {{ db_name }}{% endif %}
+      {% if bench_target == 'yb' %}ysqlsh -h localhost -p {{ yb_ysql_port }} -d {{ db_name }}{% endif %}
+      {% if bench_target == 'gp' %}su - {{ gp_user }} -c "psql -d {{ db_name }}"{% endif %}
+
+- name: Benchmark Q1 - random row
+  ansible.builtin.shell: |
+    {{ bench_conn }} -c '\timing' -c "SELECT * FROM {{ table_name }} ORDER BY random() LIMIT 1;" 2>&1 \
+      | grep 'Time:' | awk '{print $2}'
+  register: bench_q1
+  changed_when: false
+
+- name: Benchmark Q2 - week range
+  ansible.builtin.shell: |
+    {{ bench_conn }} -c '\timing' -c "SELECT count(*) FROM {{ table_name }} WHERE trip_start_timestamp BETWEEN '2015-02-01' AND '2015-02-07';" 2>&1 \
+      | grep 'Time:' | awk '{print $2}'
+  register: bench_q2
+  changed_when: false
+
+- name: Benchmark Q3 - count(*)
+  ansible.builtin.shell: |
+    {{ bench_conn }} -c '\timing' -c "SELECT count(*) FROM {{ table_name }};" 2>&1 \
+      | grep 'Time:' | awk '{print $2}'
+  register: bench_q3
+  changed_when: false
+
+- name: Write times file
+  ansible.builtin.copy:
+    dest: "{{ results_dir }}/{{ bench_target }}_times.txt"
+    content: |
+      {{ bench_target | upper }} Q1: {{ bench_q1.stdout }} s
+      {{ bench_target | upper }} Q2: {{ bench_q2.stdout }} s
+      {{ bench_target | upper }} Q3: {{ bench_q3.stdout }} s
+
+- name: Write count file
+  ansible.builtin.shell: |
+    {{ bench_conn }} -tAc "SELECT count(*) FROM {{ table_name }};" > {{ results_dir }}/{{ bench_target }}_count.txt
+  changed_when: true

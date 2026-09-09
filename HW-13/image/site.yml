@@ -1,0 +1,73 @@
+---
+# Play 0: Common setup - базовая настройка всех нод
+- name: "0. Common setup"
+  hosts: all
+  become: true
+  roles:
+    - common
+
+# Play 1: PG baseline - установка PostgreSQL 16
+- name: "1. PG baseline"
+  hosts: pg_baseline
+  become: true
+  roles:
+    - postgres
+
+# Play 2: Dataset generation - генерация 70M строк и экспорт
+- name: "2. Dataset generation"
+  hosts: pg_baseline
+  become: true
+  roles:
+    - dataset
+
+# Play 3: Benchmark PG - тайминги запросов на PostgreSQL
+- name: "3. Benchmark PG"
+  hosts: pg_baseline
+  become: true
+  roles:
+    - { role: benchmark, bench_target: pg }
+
+# Play 4: YugabyteDB cluster - развёртывание 3 нод
+- name: "4. YugabyteDB cluster"
+  hosts: yugabyte
+  become: true
+  roles:
+    - yugabyte
+
+# Play 5: Benchmark YugabyteDB - загрузка + тайминги
+- name: "5. Benchmark YugabyteDB"
+  hosts: yugabyte
+  become: true
+  roles:
+    - { role: benchmark, bench_target: yb }
+
+# Play 6: Greenplum cluster - развёртывание мастер + 2 сегмента
+- name: "6. Greenplum cluster"
+  hosts: greenplum
+  become: true
+  roles:
+    - greenplum
+
+# Play 7: Benchmark Greenplum - загрузка + тайминги
+- name: "7. Benchmark Greenplum"
+  hosts: gp_master
+  become: true
+  roles:
+    - { role: benchmark, bench_target: gp }
+
+# Play 8: Collect results - сбор таймингов в тарболы
+- name: "8. Collect results"
+  hosts: pg_baseline, yugabyte, greenplum
+  become: true
+  tasks:
+    - name: Tar results
+      ansible.builtin.shell: |
+        cd {{ results_dir }}
+        tar -czf /tmp/{{ inventory_hostname }}.tar.gz *.txt *.csv 2>/dev/null || true
+      changed_when: true
+
+    - name: Fetch to localhost
+      ansible.builtin.fetch:
+        src: "/tmp/{{ inventory_hostname }}.tar.gz"
+        dest: "results/{{ inventory_hostname }}.tar.gz"
+        flat: true

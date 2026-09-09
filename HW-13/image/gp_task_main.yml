@@ -1,0 +1,216 @@
+---
+# Установка Greenplum
+
+- name: Download Greenplum tarball
+  ansible.builtin.get_url:
+    url: "https://datasapience-3p.s3.amazonaws.com/greenplum-db-{{ gp_version }}-ubuntu-22.04-x86_64.tar.gz"
+    dest: /tmp/greenplum.tar.gz
+    mode: "0644"
+
+- name: Create gpadmin user
+  ansible.builtin.user:
+    name: "{{ gp_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Extract Greenplum to /opt (без apt-зависимостей)
+  ansible.builtin.unarchive:
+    src: /tmp/greenplum.tar.gz
+    dest: /opt/
+    remote_src: true
+
+- name: Find greenplum_path.sh
+  ansible.builtin.shell: |
+    find /opt -name "greenplum_path.sh" -path "*{{ gp_version }}*" | head -1
+  register: gp_path_find
+  changed_when: false
+
+- name: Set GP home fact
+  ansible.builtin.set_fact:
+    gp_home_actual: "{{ gp_path_find.stdout | dirname }}"
+
+- name: Write .bash_profile for gpadmin
+  ansible.builtin.copy:
+    dest: "/home/{{ gp_user }}/.bash_profile"
+    owner: "{{ gp_user }}"
+    group: "{{ gp_user }}"
+    mode: "0644"
+    content: |
+      source {{ gp_home_actual }}/greenplum_path.sh
+      export MASTER_DATA_DIRECTORY={{ gp_master_data_dir }}
+
+- name: Set hostname explicitly (fix YC auto-generated)
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Create data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ gp_user }}"
+    group: "{{ gp_user }}"
+    mode: "0755"
+  loop:
+    - /data/master
+    - /data/primary
+
+- name: Generate SSH key for gpadmin
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c 'ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa -q'
+  args:
+    creates: "/home/{{ gp_user }}/.ssh/id_rsa.pub"
+
+# Инициализация кластера
+
+- name: Clean old lock files
+  ansible.builtin.shell: |
+    rm -f /tmp/.s.PGSQL.* /tmp/.s.*.lock 2>/dev/null || true
+  changed_when: false
+
+- name: Check if GP master data exists
+  ansible.builtin.stat:
+    path: "{{ gp_master_data_dir }}/postgresql.conf"
+  register: gp_master_data
+
+- name: Run gpinitsystem (only if not initialized)
+  ansible.builtin.shell: |
+    rm -f {{ results_dir }}/gp_init_done.txt {{ results_dir }}/gp_init.log
+    nohup bash -c '
+      su - {{ gp_user }} -c "
+        source {{ gp_home_actual }}/greenplum_path.sh
+        export MASTER_DATA_DIRECTORY={{ gp_master_data_dir }}
+        gpinitsystem -c /home/{{ gp_user }}/gpconfigs/gpinitsystem_config \
+                     -h /home/{{ gp_user }}/hostfile_gpinitsystem -a
+      " > {{ results_dir }}/gp_init.log 2>&1
+      echo DONE > {{ results_dir }}/gp_init_done.txt
+    ' > /var/log/gp_init_outer.log 2>&1 &
+  when: not gp_master_data.stat.exists
+
+- name: Wait for gpinitsystem
+  ansible.builtin.shell: cat {{ results_dir }}/gp_init_done.txt
+  register: gp_init_done
+  until: gp_init_done.stdout == "DONE"
+  retries: "{{ (timeout_data_load / 30) | int }}"
+  delay: 30
+  when: not gp_master_data.stat.exists
+
+- name: Ensure cluster is running
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c 'gpstate -s' 2>/dev/null || \
+    su - {{ gp_user }} -c 'gpstart -a' 2>/dev/null || \
+    (
+      su - {{ gp_user }} -c "pg_ctl -D {{ gp_master_data_dir }} stop -m immediate -w" 2>/dev/null
+      su - {{ gp_user }} -c 'gpstart -a'
+    )
+  register: gp_start_result
+  failed_when: false
+  changed_when: true
+
+- name: Verify GP is accepting connections
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c 'psql -d postgres -c "SELECT 1;"'
+  register: gp_conn
+  until: gp_conn.rc == 0
+  retries: 5
+  delay: 10
+
+- name: Create database and table (идемпотентно)
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c "psql -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'\"" | grep -q 1 \
+      || su - {{ gp_user }} -c "psql -d postgres -c 'CREATE DATABASE {{ db_name }};'"
+    su - {{ gp_user }} -c "psql -d {{ db_name }} -c '
+      CREATE TABLE IF NOT EXISTS {{ table_name }} (
+        taxi_id INT,
+        trip_start_timestamp TIMESTAMP,
+        trip_end_timestamp TIMESTAMP,
+        trip_seconds INT,
+        trip_miles NUMERIC,
+        fare NUMERIC,
+        tips NUMERIC,
+        tolls NUMERIC,
+        extras NUMERIC,
+        trip_total NUMERIC,
+        payment_type TEXT,
+        company TEXT,
+        pickup_community_area INT,
+        dropoff_community_area INT
+      ) DISTRIBUTED BY (taxi_id);'"
+  when: inventory_hostname == groups['gp_master'][0]
+  changed_when: true
+
+# Загрузка через локальный \COPY
+
+- name: Check if CSV already loaded
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c "psql -d {{ db_name }} -tAc 'SELECT count(*) FROM {{ table_name }};'"
+  register: gp_count_check
+  changed_when: false
+  failed_when: false
+
+- name: Copy CSV from source to gp-master (через rsync по SSH)
+  ansible.builtin.shell: |
+    mkdir -p {{ data_dir }}
+    chown {{ gp_user }}:{{ gp_user }} {{ data_dir }}
+    rsync --progress -e "ssh -o StrictHostKeyChecking=no" \
+      {{ groups['yb'][0] }}:{{ csv_path }} {{ csv_path }} 2>/dev/null || \
+    rsync --progress -e "ssh -o StrictHostKeyChecking=no" \
+      {{ groups['pg_baseline'][0] }}:{{ csv_path }} {{ csv_path }}
+  when: (gp_count_check.stdout | default('0') | int) < row_count
+
+- name: Write load script (без вложенных кавычек — отдельный файл)
+  ansible.builtin.copy:
+    dest: "/home/{{ gp_user }}/gp_load_local.sh"
+    owner: "{{ gp_user }}"
+    group: "{{ gp_user }}"
+    mode: "0755"
+    content: |
+      #!/bin/bash
+      set -e
+      start=$(date +%s)
+      psql -d {{ db_name }} -c "\COPY {{ table_name }} FROM '{{ csv_path }}' WITH (FORMAT csv);"
+      end=$(date +%s)
+      echo "GP load time: $((end - start)) seconds" > {{ results_dir }}/gp_load_time.txt
+      psql -d {{ db_name }} -tAc "SELECT count(*) FROM {{ table_name }};" > {{ results_dir }}/gp_count.txt
+      echo DONE > {{ results_dir }}/gp_load_done.txt
+
+- name: Run load in background
+  ansible.builtin.shell: |
+    rm -f {{ results_dir }}/gp_load_done.txt {{ results_dir }}/gp_count.txt {{ results_dir }}/gp_load_time.txt
+    nohup su - {{ gp_user }} -c 'bash /home/{{ gp_user }}/gp_load_local.sh' \
+      > /var/log/gp_load.log 2>&1 &
+  when: (gp_count_check.stdout | default('0') | int) < row_count
+
+- name: Wait for GP load
+  ansible.builtin.shell: cat {{ results_dir }}/gp_load_done.txt
+  register: gp_load_done
+  until: gp_load_done.stdout == "DONE"
+  retries: "{{ (timeout_data_load / 30) | int }}"
+  delay: 30
+  when: (gp_count_check.stdout | default('0') | int) < row_count
+
+# Бенчмарк 3 запроса
+
+- name: Benchmark Q1 - random row
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c "psql -d {{ db_name }} -c '\\timing' -c 'SELECT * FROM {{ table_name }} ORDER BY random() LIMIT 1;'" \
+      2>&1 | grep 'Time:' | awk '{print $2}' > {{ results_dir }}/gp_q1.txt
+  changed_when: true
+
+- name: Benchmark Q2 - week range
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c "psql -d {{ db_name }} -c '\\timing' -c \"SELECT count(*) FROM {{ table_name }} WHERE trip_start_timestamp BETWEEN '2015-02-01' AND '2015-02-07';\"" \
+      2>&1 | grep 'Time:' | awk '{print $2}' > {{ results_dir }}/gp_q2.txt
+  changed_when: true
+
+- name: Benchmark Q3 - count(*)
+  ansible.builtin.shell: |
+    su - {{ gp_user }} -c "psql -d {{ db_name }} -c '\\timing' -c 'SELECT count(*) FROM {{ table_name }};'" \
+      2>&1 | grep 'Time:' | awk '{print $2}' > {{ results_dir }}/gp_q3.txt
+  changed_when: true
+
+- name: Aggregate GP times
+  ansible.builtin.shell: |
+    echo "GP Q1: $(cat {{ results_dir }}/gp_q1.txt) s" > {{ results_dir }}/gp_times.txt
+    echo "GP Q2: $(cat {{ results_dir }}/gp_q2.txt) s" >> {{ results_dir }}/gp_times.txt
+    echo "GP Q3: $(cat {{ results_dir }}/gp_q3.txt) s" >> {{ results_dir }}/gp_times.txt
+  changed_when: true
