@@ -33,64 +33,78 @@
   <main>
     <section id="health" class="health" aria-live="polite"></section>
 
-    <section aria-labelledby="h-repl">
-      <h2 id="h-repl">Репликация</h2>
-      <p class="hint">Длина полосы показывает, насколько реплика отстаёт от лидера.</p>
-      <div id="topology" class="topology"></div>
-    </section>
+    <nav class="tabs" role="tablist" aria-label="Разделы">
+      <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-controls="panel-overview" aria-selected="true">Обзор</button>
+      <button type="button" role="tab" id="tab-events" data-tab="events" aria-controls="panel-events" aria-selected="false">События <span id="open-count" class="count" hidden></span></button>
+      <button type="button" role="tab" id="tab-ops" data-tab="ops" aria-controls="panel-ops" aria-selected="false" hidden>Операции <span id="active-op" class="count running" hidden></span></button>
+    </nav>
 
-    <section aria-labelledby="h-events">
-      <h2 id="h-events">События</h2>
-      <p class="hint" id="watcher-line"></p>
-      <ol id="events" class="events"></ol>
-      <p class="events-tools"><button type="button" id="notify-test" class="link" hidden>Отправить тестовое уведомление</button> <span id="notify-test-result" class="muted"></span></p>
-    </section>
-
-    <section id="ops-section" aria-labelledby="h-ops" hidden>
-      <h2 id="h-ops">Операции</h2>
-      <p class="hint">Перед запуском консоль проверяет кластер и показывает, что может пойти не так.</p>
-      <div class="ops-bar">
-        <button data-op="switchover" data-role="operator">Switchover</button>
-        <button data-op="cancel_switchover" data-role="operator">Отменить запланированный</button>
-        <button data-op="pause" data-role="operator">Поставить на паузу</button>
-        <button data-op="resume" data-role="operator">Снять паузу</button>
-        <button data-op="restart" data-role="operator">Рестарт ноды</button>
-        <button data-op="rolling_restart" data-role="operator">Rolling restart</button>
-        <button data-op="failover" data-role="admin" class="danger">Failover</button>
-        <button data-op="reinitialize" data-role="admin" class="danger">Reinit реплики</button>
-      </div>
-      <div class="table-wrap">
-        <table id="ops">
-          <thead><tr><th>№</th><th>Операция</th><th>Параметры</th><th>Статус</th><th>Кто</th><th>Когда</th><th>Ход</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section aria-labelledby="h-nodes">
-      <h2 id="h-nodes">Ноды</h2>
-      <div class="table-wrap">
-        <table id="nodes">
-          <thead><tr>
-            <th>Нода</th><th>Роль</th><th>Состояние</th><th class="num">Таймлайн</th>
-            <th class="num">Лаг</th><th>LSN</th><th>Теги</th><th class="num">REST, мс</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <div class="cols">
-      <section aria-labelledby="h-etcd">
-        <h2 id="h-etcd">etcd</h2>
-        <div id="etcd"></div>
+    <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" class="panel">
+      <section aria-labelledby="h-repl">
+        <h2 id="h-repl">Репликация</h2>
+        <p class="hint">Длина полосы показывает, насколько реплика отстаёт от лидера.</p>
+        <div id="topology" class="topology"></div>
       </section>
-      <section aria-labelledby="h-hist">
-        <h2 id="h-hist">История переключений</h2>
-        <ol id="history" class="history"></ol>
+
+      <section aria-labelledby="h-nodes">
+        <h2 id="h-nodes">Ноды</h2>
+        <div class="table-wrap">
+          <table id="nodes">
+            <thead><tr>
+              <th>Нода</th><th>Роль</th><th>Состояние</th><th class="num">Таймлайн</th>
+              <th class="num">Лаг</th><th>LSN</th><th>Теги</th><th class="num">REST, мс</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
+
+      <div class="cols">
+        <section aria-labelledby="h-etcd">
+          <h2 id="h-etcd">etcd</h2>
+          <div id="etcd"></div>
+        </section>
+        <section aria-labelledby="h-hist">
+          <h2 id="h-hist">История переключений</h2>
+          <ol id="history" class="history"></ol>
+        </section>
+      </div>
+      </div>
+
+    <div id="panel-events" role="tabpanel" aria-labelledby="tab-events" class="panel" hidden>
+      <section aria-labelledby="h-events">
+        <h2 id="h-events" class="sr-only">События</h2>
+        <p class="hint" id="watcher-line"></p>
+        <ol id="events" class="events"></ol>
+        <p class="events-tools"><button type="button" id="notify-test" class="link" hidden>Отправить тестовое уведомление</button> <span id="notify-test-result" class="muted"></span></p>
+      </section>
+
     </div>
-  </main>
+
+    <div id="panel-ops" role="tabpanel" aria-labelledby="tab-ops" class="panel" hidden>
+      <section aria-labelledby="h-ops">
+        <h2 id="h-ops" class="sr-only">Операции</h2>
+        <p class="hint">Перед запуском консоль проверяет кластер и показывает, что может пойти не так.</p>
+        <div class="ops-bar">
+          <button data-op="switchover" data-role="operator">Switchover</button>
+          <button data-op="cancel_switchover" data-role="operator">Отменить запланированный</button>
+          <button data-op="pause" data-role="operator">Поставить на паузу</button>
+          <button data-op="resume" data-role="operator">Снять паузу</button>
+          <button data-op="restart" data-role="operator">Рестарт ноды</button>
+          <button data-op="rolling_restart" data-role="operator">Rolling restart</button>
+          <button data-op="failover" data-role="admin" class="danger">Failover</button>
+          <button data-op="reinitialize" data-role="admin" class="danger">Reinit реплики</button>
+        </div>
+        <div class="table-wrap">
+          <table id="ops">
+            <thead><tr><th>№</th><th>Операция</th><th>Параметры</th><th>Статус</th><th>Кто</th><th>Когда</th><th>Ход</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+</main>
 </div>
 
 <dialog id="op-dialog" aria-labelledby="op-title">

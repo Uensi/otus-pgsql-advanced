@@ -67,7 +67,8 @@
   async function start(me) {
     csrf = me.csrf_token;
     role = me.role;
-    $('ops-section').hidden = LEVEL[role] < LEVEL.operator;
+    $('tab-ops').hidden = LEVEL[role] < LEVEL.operator;
+    showTab(readTab());
     for (const b of document.querySelectorAll('.ops-bar button')) b.hidden = LEVEL[role] < LEVEL[b.dataset.role];
     $('who').textContent = me.username + ' (' + me.role + ')';
     $('login').hidden = true; $('app').hidden = false;
@@ -94,7 +95,7 @@
     }
     api('/api/clusters/' + encodeURIComponent(name) + '/etcd').then(renderEtcd)
       .catch((e) => $('etcd').replaceChildren(el('p', { class: 'state-bad' }, 'etcd: ' + e.message)));
-    if (!$('ops-section').hidden) {
+    if (!$('tab-ops').hidden) {
       api('/api/clusters/' + encodeURIComponent(name) + '/operations').then(renderOps).catch(() => {});
     }
     api('/api/clusters/' + encodeURIComponent(name) + '/events?limit=50').then((d) => { if (name === cluster) renderEvents(d); })
@@ -114,13 +115,25 @@
     box.replaceChildren(el('p', { class: 'verdict' }, verdict), (st.warnings || []).length ? ul : null);
   }
 
+  const SVG = 'http://www.w3.org/2000/svg';
+  function crown(title) {
+    const svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'crown');
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', title || 'лидер');
+    const t = document.createElementNS(SVG, 'title'); t.textContent = title || 'лидер (мастер)';
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', 'M2.5 7.5l5 4 4.5-7 4.5 7 5-4-2 10.5h-15zM4.5 19.5h15V21h-15z');
+    svg.append(t, path);
+    return svg;
+  }
+
   function renderTopology(st) {
     const box = $('topology');
     const members = (st.members || []).filter((m) => m.in_dcs);
     const leader = members.find((m) => LEADER.has(m.role));
     const replicas = members.filter((m) => m !== leader);
     const head = leader
-      ? el('div', { class: 'leader-row' }, el('span', { class: 'name' }, leader.name),
+      ? el('div', { class: 'leader-row' }, el('span', { class: 'name' }, crown(), leader.name),
         el('span', { class: 'muted' }, (ROLE_RU[leader.role] || leader.role) + ', таймлайн ' + leader.timeline + (st.paused ? ', пауза' : '')))
       : el('div', { class: 'leader-row' }, el('span', { class: 'name state-bad' }, 'Лидера нет'));
     const max = Math.max(1, ...replicas.map((m) => m.lag || 0));
@@ -145,7 +158,8 @@
       const state = m.reachable === false ? 'недоступна' : (m.state || '—');
       const bad = m.reachable === false || (m.state && !['running', 'streaming'].includes(m.state));
       return el('tr', null,
-        el('td', null, m.name, m.pending_restart ? el('span', { class: 'tag' }, 'нужен рестарт') : null),
+        el('td', null, LEADER.has(m.role) && m.in_dcs ? crown() : null, m.name,
+          m.pending_restart ? el('span', { class: 'tag' }, 'нужен рестарт') : null),
         el('td', null, ROLE_RU[m.role] || m.role || '—'),
         el('td', { class: bad ? 'state-bad' : '' }, state),
         el('td', { class: 'num' }, m.timeline ?? '—'),
@@ -179,6 +193,28 @@
       el('div', { class: 'muted' }, (r.timestamp || '') + ' ' + (r.reason || '')))));
   }
 
+  // ---------- вкладки ----------
+  const TABS = ['overview', 'events', 'ops'];
+  function readTab() {
+    const h = location.hash.replace('#', '');
+    return TABS.includes(h) ? h : 'overview';
+  }
+  function showTab(name) {
+    if (name === 'ops' && $('tab-ops').hidden) name = 'overview';
+    for (const t of TABS) {
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+      $('tab-' + t).tabIndex = t === name ? 0 : -1;
+      $('panel-' + t).hidden = t !== name;
+    }
+  }
+  function onTabKey(ev) {
+    const visible = TABS.filter((t) => !$('tab-' + t).hidden);
+    const i = visible.indexOf(ev.target.dataset.tab);
+    const next = ev.key === 'ArrowRight' ? visible[(i + 1) % visible.length]
+      : ev.key === 'ArrowLeft' ? visible[(i - 1 + visible.length) % visible.length] : null;
+    if (next) { ev.preventDefault(); location.hash = next; $('tab-' + next).focus(); }
+  }
+
   // ---------- события ----------
   const NOTIFY_RU = { pending: 'ждёт отправки', sent: 'отправлено', failed: 'не отправлено' };
   function renderEvents(d) {
@@ -194,6 +230,10 @@
     $('watcher-line').textContent = line;
     $('notify-test').hidden = role !== 'admin' || !d.channels.length;
     const open = new Set(d.open.map((c) => c.event_id));
+    const badge = $('open-count');
+    badge.hidden = !d.open.length; badge.textContent = d.open.length;
+    badge.className = 'count' + (d.open.some((c) => c.level === 'critical') ? '' : ' warn');
+    badge.title = 'открытых проблем: ' + d.open.length;
     if (!d.events.length) { $('events').replaceChildren(el('li', { class: 'muted' }, 'Событий пока не было')); return; }
     $('events').replaceChildren(...d.events.map((e) => {
       const cls = e.kind === 'resolved' ? 'resolved' : e.level;
@@ -218,6 +258,9 @@
 
   // ---------- операции ----------
   function renderOps(list) {
+    const active = list.find((o) => o.status === 'running' || o.status === 'pending' || o.status === 'scheduled');
+    $('active-op').hidden = !active;
+    $('active-op').textContent = active ? (active.status === 'scheduled' ? 'запланирована' : 'идёт') : '';
     const tb = $('ops').querySelector('tbody');
     if (!list.length) { tb.replaceChildren(el('tr', null, el('td', { colspan: '7', class: 'muted' }, 'Операций ещё не было'))); return; }
     tb.replaceChildren(...list.slice(0, 20).map((o) => {
@@ -238,7 +281,7 @@
     if (optional) sel.append(el('option', { value: '' }, 'выберет Patroni'));
     for (const m of (lastStatus && lastStatus.members) || []) {
       if (m.unconfigured || !filter(m)) continue;
-      sel.append(el('option', { value: m.name }, m.name + ' · ' + (ROLE_RU[m.role] || m.role || '?') +
+      sel.append(el('option', { value: m.name }, (LEADER.has(m.role) ? '♛ ' : '') + m.name + ' · ' + (ROLE_RU[m.role] || m.role || '?') +
         (LEADER.has(m.role) ? '' : ', лаг ' + (m.lag_unknown ? 'неизвестен' : bytes(m.lag)))));
     }
     return el('label', null, label, sel);
@@ -346,6 +389,11 @@
     $('op-cancel').addEventListener('click', () => $('op-dialog').close());
     $('op-run').addEventListener('click', submitOp);
     $('notify-test').addEventListener('click', notifyTest);
+    for (const t of TABS) {
+      $('tab-' + t).addEventListener('click', () => { location.hash = t; });
+      $('tab-' + t).addEventListener('keydown', onTabKey);
+    }
+    window.addEventListener('hashchange', () => showTab(readTab()));
     $('login-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
