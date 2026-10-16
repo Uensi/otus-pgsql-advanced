@@ -32,6 +32,7 @@ class SimCluster:
         self.old_leader_rejoins = True
         self.leader_change_works = True
         self.restart_heals = True
+        self.config_patch_ignored = False
 
     @property
     def leader(self):
@@ -122,6 +123,9 @@ class SimCluster:
         if path == '/config' and method == 'PATCH':
             if 'pause' in body:
                 self.paused = bool(body['pause'])
+            from patroni_console.dynconf import merge
+            if not self.config_patch_ignored:
+                self.config = merge(self.config, {k: v for k, v in body.items() if k != 'pause'})
             return FakeResponse(200, self.config)
         if path == '/restart':
             if self.restart_heals:

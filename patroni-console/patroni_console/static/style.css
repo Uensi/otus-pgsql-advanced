@@ -109,6 +109,24 @@ tr:last-child td { border-bottom: 0; }
 .events .open-now { color: var(--crit); font-weight: 600; }
 .events-tools { margin: 8px 0 0; }
 
+/* Конфиг */
+.cfg-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+#cfg-table td { white-space: normal; overflow-wrap: anywhere; }
+#cfg-table td:first-child { font-family: var(--mono); font-size: 13px; }
+.cfg-edit { display: grid; gap: 6px; background: var(--panel); border: 1px solid var(--line); padding: 14px; }
+.cfg-edit label { color: var(--muted); font-size: 13px; }
+.cfg-edit textarea { font: 13px/1.5 var(--mono); padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); color: var(--ink); resize: vertical; }
+.cfg-edit .hint { margin: 0; }
+button.primary { padding: 7px 14px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+.diff { width: 100%; margin: 0 0 12px; font-size: 13px; }
+.diff td { white-space: normal; overflow-wrap: anywhere; padding: 4px 8px; }
+.diff td:first-child { font-family: var(--mono); }
+.diff .old { color: var(--crit); text-decoration: line-through; }
+.diff .new { color: var(--ok); font-weight: 600; }
+.history .diff { margin: 6px 0 0; }
+.history .actions { margin-top: 6px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
 /* Операции */
 .ops-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .ops-bar button, .dialog-actions button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--accent); cursor: pointer; font-weight: 600; }
@@ -160,4 +178,5 @@ dialog h2 { margin: 0 0 4px; }
   .replica { grid-template-columns: 1fr minmax(80px, auto); }
   .replica .track { grid-column: 1 / -1; grid-row: 2; }
   .events li { grid-template-columns: 1fr; gap: 2px; }
+  .cfg-cols { grid-template-columns: 1fr; }
 }

@@ -12,6 +12,7 @@ import logging
 import time
 from datetime import datetime, timezone
 
+from . import dynconf
 from . import status as status_mod
 from .patroni import PatroniError, PatroniUnknownOutcome
 
@@ -31,6 +32,7 @@ KINDS = {
     'rolling_restart': 'operator',
     'failover': 'admin',
     'reinitialize': 'admin',
+    'config': 'admin',
 }
 
 
@@ -41,6 +43,7 @@ class Timings:
     restart = 300.0          # ждать готовности ноды после рестарта
     reinit = 3600.0          # ждать окончания reinit
     pause = 30.0
+    config = 30.0            # ждать, пока новый конфиг станет виден в /config
 
 
 def _c(level, code, text):
@@ -80,6 +83,7 @@ def checks(kind, snap, dyn, params):
         'switchover': _check_switchover, 'failover': _check_failover,
         'cancel_switchover': _check_cancel, 'pause': _check_pause, 'resume': _check_resume,
         'restart': _check_restart, 'rolling_restart': _check_rolling, 'reinitialize': _check_reinit,
+        'config': _check_config,
     }[kind]
     out = fn(snap, dyn or {}, params)
     if not snap.get('view_from'):
@@ -254,6 +258,15 @@ def _check_reinit(snap, dyn, p):
     return out
 
 
+def _check_config(snap, dyn, p):
+    out = dynconf.checks(dyn, p['changes'], p.get('base_hash'))
+    if p.get('rollback_to'):
+        out.append(_c('warn', 'rollback', f'откат конфига к состоянию до версии №{p["rollback_to"]}'))
+    if not snap.get('leader'):
+        out.append(_c('warn', 'no_leader', 'в кластере нет лидера: изменение применится, когда лидер появится'))
+    return out
+
+
 def _rolling_targets(snap, only_pending):
     reps = [m['name'] for m in snap['members']
             if m.get('in_dcs') and not m.get('unconfigured') and m.get('role') not in LEADER_ROLES
@@ -425,6 +438,42 @@ class Runner:
 
     def _resume(self, op_id, p):
         return self._set_pause(op_id, False)
+
+    # ---- глобальный конфиг ----
+    def _config(self, op_id, p):
+        s = self.snap()
+        node = self.node(s['leader'] or s['view_from'])
+        before = self.client.dynamic_config(node)
+        expected = dynconf.merge(before, p['changes'])
+        outcome, body = self.send(op_id, 'PATCH /config', self.client.patch_config, node, p['changes'])
+        if outcome == 'refused':
+            return 'failed', body
+        deadline = self.clock() + self.t.config
+        after = None
+        while True:
+            try:
+                after = self.client.dynamic_config(node)
+            except PatroniError as e:
+                self.say(op_id, f'чтение /config: {e}')
+            if after is not None and not dynconf.diff({k: v for k, v in expected.items() if k != 'pause'},
+                                                      {k: v for k, v in after.items() if k != 'pause'}):
+                break
+            if self.clock() >= deadline:
+                left = dynconf.diff(expected, after or {})
+                return ('unknown' if outcome == 'unknown' else 'failed'), {
+                    'error': 'конфиг в DCS не совпал с ожидаемым', 'mismatch': left[:20]}
+            self.sleep(self.t.poll)
+        op = self.store.op_get(op_id)
+        vid = self.store.config_version_add(self.cluster.name, 'console', before, after,
+                                            username=op['created_by'] if op else None, op_id=op_id)
+        rows = dynconf.diff(before, after)
+        self.say(op_id, f'конфиг применён, версия №{vid}: ' + '; '.join(f"{r['path']}: {r['old']} → {r['new']}" for r in rows[:10]))
+        params = {r['path'].split('.', 2)[2] for r in rows if r['path'].startswith('postgresql.parameters.')}
+        result = {'version': vid, 'changed': rows}
+        if params & dynconf.RESTART:
+            result['needs_restart'] = sorted(params & dynconf.RESTART)
+            self.say(op_id, 'для части параметров нужен рестарт: запустите rolling restart')
+        return 'succeeded', result
 
     # ---- рестарты ----
     def _restart_one(self, op_id, name):

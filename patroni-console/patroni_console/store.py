@@ -91,6 +91,19 @@ CREATE TABLE IF NOT EXISTS watch_state (
     updated_at REAL NOT NULL
 );
 
+-- версии глобального конфига Patroni: до и после каждого изменения
+CREATE TABLE IF NOT EXISTS config_versions (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    cluster  TEXT NOT NULL,
+    ts       REAL NOT NULL,
+    source   TEXT NOT NULL CHECK (source IN ('console', 'external')),
+    username TEXT,
+    op_id    INTEGER,
+    before   TEXT NOT NULL,
+    after    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS config_versions_cluster ON config_versions(cluster, id);
+
 -- outbox уведомлений: пишется в одной транзакции с событием
 CREATE TABLE IF NOT EXISTS notifications (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +146,10 @@ class Store:
         self.path = path
         with self._db() as db:
             db.executescript(SCHEMA)
+            cols = {r['name'] for r in db.execute('PRAGMA table_info(watch_state)')}
+            if 'config_hash' not in cols:  # база от версии без отслеживания конфига
+                db.execute('ALTER TABLE watch_state ADD COLUMN config_hash TEXT')
+                db.execute('ALTER TABLE watch_state ADD COLUMN config TEXT')
 
     @contextmanager
     def _db(self):
@@ -397,3 +414,36 @@ class Store:
         with self._db() as db:
             db.execute('UPDATE notifications SET attempts=attempts+1, last_error=?, status=?, next_at=COALESCE(?, next_at) '
                        'WHERE id=?', (error[:500], 'failed' if next_at is None else 'pending', next_at, nid))
+
+    # ---- версии глобального конфига ----
+    def config_watch_get(self, cluster):
+        with self._db() as db:
+            row = db.execute('SELECT config_hash, config FROM watch_state WHERE cluster=?', (cluster,)).fetchone()
+        if not row or row['config'] is None:
+            return None, None
+        return row['config_hash'], json.loads(row['config'])
+
+    def config_watch_set(self, cluster, h, cfg):
+        with self._db() as db:
+            db.execute('INSERT INTO watch_state (cluster, updated_at, config_hash, config) VALUES (?,?,?,?) '
+                       'ON CONFLICT(cluster) DO UPDATE SET config_hash=excluded.config_hash, config=excluded.config',
+                       (cluster, time.time(), h, json.dumps(cfg, ensure_ascii=False)))
+
+    def config_version_add(self, cluster, source, before, after, username=None, op_id=None):
+        with self._db() as db:
+            cur = db.execute('INSERT INTO config_versions (cluster, ts, source, username, op_id, before, after) '
+                             'VALUES (?,?,?,?,?,?,?)',
+                             (cluster, time.time(), source, username, op_id,
+                              json.dumps(before, ensure_ascii=False), json.dumps(after, ensure_ascii=False)))
+            return cur.lastrowid
+
+    def config_versions(self, cluster, limit=50):
+        with self._db() as db:
+            rows = db.execute('SELECT * FROM config_versions WHERE cluster=? ORDER BY id DESC LIMIT ?',
+                              (cluster, limit)).fetchall()
+        return [dict(r, before=json.loads(r['before']), after=json.loads(r['after'])) for r in rows]
+
+    def config_version(self, cluster, vid):
+        with self._db() as db:
+            r = db.execute('SELECT * FROM config_versions WHERE cluster=? AND id=?', (cluster, vid)).fetchone()
+        return dict(r, before=json.loads(r['before']), after=json.loads(r['after'])) if r else None

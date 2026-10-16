@@ -21,10 +21,12 @@
     resume: { title: 'Снятие паузы', desc: 'Patroni снова управляет кластером.', fields: [] },
     restart: { title: 'Рестарт PostgreSQL на ноде', desc: 'Перезапуск одной ноды через Patroni.', fields: ['node'] },
     rolling_restart: { title: 'Rolling restart', desc: 'Реплики по одной, затем switchover и рестарт бывшего лидера. Останавливается на первой ошибке.', fields: ['only_pending'] },
+    config: { title: 'Изменение глобального конфига', desc: 'PATCH /config. Изменение применяется ко всему кластеру.', fields: [] },
     failover: { title: 'Failover', desc: 'Аварийное назначение лидера. Используйте, когда лидера нет.', fields: ['candidate'], danger: true },
     reinitialize: { title: 'Reinit реплики', desc: 'Удаляет данные реплики и копирует их заново с лидера.', fields: ['node_replica'], danger: true },
   };
   let opKind = null;
+  let opExtra = {};
   let opKey = null;
   let lastCheck = null;
   let checkSeq = 0;
@@ -95,6 +97,7 @@
     }
     api('/api/clusters/' + encodeURIComponent(name) + '/etcd').then(renderEtcd)
       .catch((e) => $('etcd').replaceChildren(el('p', { class: 'state-bad' }, 'etcd: ' + e.message)));
+    if (!$('panel-config').hidden) loadConfig();
     if (!$('tab-ops').hidden) {
       api('/api/clusters/' + encodeURIComponent(name) + '/operations').then(renderOps).catch(() => {});
     }
@@ -193,8 +196,86 @@
       el('div', { class: 'muted' }, (r.timestamp || '') + ' ' + (r.reason || '')))));
   }
 
+  // ---------- конфиг ----------
+  function flatten(obj, prefix) {
+    const out = [];
+    for (const [k, v] of Object.entries(obj || {})) {
+      const p = prefix ? prefix + '.' + k : k;
+      if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) out.push(...flatten(v, p));
+      else out.push([p, v]);
+    }
+    return out;
+  }
+  function fmtVal(v) {
+    if (v === null || v === undefined) return '—';
+    return typeof v === 'object' ? JSON.stringify(v) : String(v);
+  }
+  function diffTable(rows) {
+    if (!rows.length) return el('p', { class: 'muted' }, 'Изменений нет');
+    return el('table', { class: 'diff' }, el('tbody', null, ...rows.map((r) => el('tr', null,
+      el('td', null, r.path),
+      el('td', { class: 'old' }, r.old === null || r.old === undefined ? '' : fmtVal(r.old)),
+      el('td', { class: 'new' }, r.new === null || r.new === undefined ? 'удалить' : fmtVal(r.new))))));
+  }
+  function parseValue(raw) {
+    const v = raw.trim();
+    if (v === 'null') return null;
+    if (v === 'true' || v === 'false') return v === 'true';
+    if (/^-?\d+$/.test(v)) return parseInt(v, 10);
+    if (/^".*"$/.test(v) || /^'.*'$/.test(v)) return v.slice(1, -1);
+    if (/^[\[{]/.test(v)) { try { return JSON.parse(v); } catch (e) { throw new Error('не JSON: ' + v); } }
+    return v;
+  }
+  function parseChanges(text) {
+    const changes = {};
+    text.split('\n').forEach((line, i) => {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) return;
+      const eq = l.indexOf('=');
+      if (eq < 1) throw new Error('строка ' + (i + 1) + ': нужно «ключ = значение»');
+      const path = l.slice(0, eq).trim().split('.');
+      let node = changes;
+      for (const part of path.slice(0, -1)) {
+        if (!part) throw new Error('строка ' + (i + 1) + ': пустая часть ключа');
+        node = node[part] = (node[part] && typeof node[part] === 'object') ? node[part] : {};
+      }
+      node[path[path.length - 1]] = parseValue(l.slice(eq + 1));
+    });
+    if (!Object.keys(changes).length) throw new Error('введите хотя бы одно изменение');
+    return changes;
+  }
+  function renderConfig(cfg) {
+    const rows = flatten(cfg).filter(([p]) => p !== 'pause').sort((a, b) => a[0].localeCompare(b[0]));
+    $('cfg-table').querySelector('tbody').replaceChildren(...rows.map(([p, v]) => el('tr', null, el('td', null, p), el('td', null, fmtVal(v)))));
+    $('cfg-form').hidden = role !== 'admin';
+  }
+  const SRC_RU = { console: 'через консоль', external: 'вне консоли' };
+  function renderVersions(list) {
+    if (!list.length) { $('cfg-versions').replaceChildren(el('li', { class: 'muted' }, 'Изменений пока не было')); return; }
+    $('cfg-versions').replaceChildren(...list.map((v) => {
+      const li = el('li', null,
+        el('strong', null, 'Версия №' + v.id), ' ',
+        el('span', { class: 'muted' }, new Date(v.ts * 1000).toLocaleString() + ', ' + (SRC_RU[v.source] || v.source) +
+          (v.username ? ', ' + v.username : '') + (v.op_id ? ', операция №' + v.op_id : '')),
+        diffTable(v.diff));
+      if (role === 'admin') {
+        const b = el('button', { type: 'button', class: 'link' }, 'Откатить это изменение');
+        b.addEventListener('click', () => openOp('config', { rollback_to: v.id }));
+        li.append(el('div', { class: 'actions' }, b));
+      }
+      return li;
+    }));
+  }
+  function loadConfig() {
+    const name = cluster;
+    api('/api/clusters/' + encodeURIComponent(name) + '/config').then((d) => { if (name === cluster) renderConfig(d); })
+      .catch((e) => $('cfg-table').querySelector('tbody').replaceChildren(el('tr', null, el('td', { colspan: '2', class: 'state-bad' }, e.message))));
+    api('/api/clusters/' + encodeURIComponent(name) + '/config/versions').then((d) => { if (name === cluster) renderVersions(d); })
+      .catch(() => {});
+  }
+
   // ---------- вкладки ----------
-  const TABS = ['overview', 'events', 'ops'];
+  const TABS = ['overview', 'events', 'config', 'ops'];
   function readTab() {
     const h = location.hash.replace('#', '');
     return TABS.includes(h) ? h : 'overview';
@@ -206,6 +287,7 @@
       $('tab-' + t).tabIndex = t === name ? 0 : -1;
       $('panel-' + t).hidden = t !== name;
     }
+    if (name === 'config' && csrf) loadConfig();
   }
   function onTabKey(ev) {
     const visible = TABS.filter((t) => !$('tab-' + t).hidden);
@@ -264,7 +346,8 @@
     const tb = $('ops').querySelector('tbody');
     if (!list.length) { tb.replaceChildren(el('tr', null, el('td', { colspan: '7', class: 'muted' }, 'Операций ещё не было'))); return; }
     tb.replaceChildren(...list.slice(0, 20).map((o) => {
-      const params = Object.entries(o.params || {}).map(([k, v]) => k + '=' + v).join(', ') || '—';
+      const params = Object.entries(o.params || {}).filter(([k]) => k !== 'base_hash')
+        .map(([k, v]) => k === 'changes' ? flatten(v).map(([p, x]) => p + '=' + fmtVal(x)).join(', ') : k + '=' + v).join(', ') || '—';
       const logList = el('ol');
       for (const l of o.log || []) logList.append(el('li', null, new Date(l.ts * 1000).toLocaleTimeString() + ' ' + l.msg));
       const last = (o.log || []).slice(-1)[0];
@@ -312,7 +395,7 @@
   }
 
   function readParams() {
-    const p = {};
+    const p = Object.assign({}, opExtra);
     for (const i of $('op-fields').querySelectorAll('select, input')) {
       if (i.type === 'checkbox') p[i.name] = i.checked;
       else if (i.name === 'scheduled_at') { if (i.value) p.scheduled_at = isoWithOffset(i.value); }
@@ -330,6 +413,10 @@
         { method: 'POST', body: { kind: opKind, params: readParams() } });
       if (seq !== checkSeq) return;
       lastCheck = r;
+      if (r.preview) {
+        if (!opExtra.base_hash) opExtra.base_hash = r.preview.base_hash;
+        $('op-preview').replaceChildren(diffTable(r.preview.diff));
+      }
       const LV = { block: 'Нельзя', force: 'Опасно', warn: 'Внимание' };
       const items = r.checks.map((c) => el('li', { class: c.level }, el('strong', null, LV[c.level] + ': '), c.text));
       $('op-checks').replaceChildren(items.length ? el('ul', null, ...items) : el('p', { class: 'ok' }, 'Проверки пройдены'));
@@ -348,8 +435,10 @@
     $('op-run').disabled = !ok;
   }
 
-  function openOp(kind) {
+  function openOp(kind, extra) {
     opKind = kind;
+    opExtra = Object.assign({}, extra || {});
+    $('op-preview').replaceChildren();
     opKey = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
     const o = OPS[kind];
     $('op-title').textContent = o.title;
@@ -394,6 +483,11 @@
       $('tab-' + t).addEventListener('keydown', onTabKey);
     }
     window.addEventListener('hashchange', () => showTab(readTab()));
+    $('cfg-form').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      $('cfg-error').textContent = '';
+      try { openOp('config', { changes: parseChanges($('cfg-changes').value) }); } catch (e) { $('cfg-error').textContent = e.message; }
+    });
     $('login-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);

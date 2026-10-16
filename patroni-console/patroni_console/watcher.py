@@ -14,7 +14,9 @@ import logging
 import threading
 import time
 
+from . import dynconf
 from . import status as status_mod
+from .patroni import PatroniError
 from .notify import channels_for
 
 log = logging.getLogger('patroni_console.watcher')
@@ -66,9 +68,11 @@ class Watcher:
     def tick(self, cluster):
         t0 = time.monotonic()
         try:
-            snap = status_mod.collect(cluster, self.patroni_client(cluster), self.pool)
+            pc = self.patroni_client(cluster)
+            snap = status_mod.collect(cluster, pc, self.pool)
             etcd = self.etcd_client(cluster).health() if cluster.etcd.endpoints else None
             self.evaluate(cluster, snap, etcd)
+            self.check_config(cluster, snap, pc)
             self.state[cluster.name] = {'last_run': self.clock(), 'error': None,
                                         'ms': round((time.monotonic() - t0) * 1000)}
         except Exception as e:  # наблюдатель не должен умирать из-за одного кластера
@@ -142,6 +146,42 @@ class Watcher:
         ev = self.store.event_add(name, 'leader_change', level, 'leader_change', text, node=leader,
                                   op_id=op_id, channels=self._channels(level))
         return [ev['id']]
+
+    def check_config(self, cluster, snap, client):
+        """Замечает изменения глобального конфига, сделанные не через консоль (patronictl edit-config и т.п.)."""
+        name = cluster.name
+        order = sorted(cluster.nodes, key=lambda n: n.name != snap.get('leader'))
+        cfg = None
+        for n in order:
+            try:
+                cfg = client.dynamic_config(n)
+                break
+            except PatroniError:
+                continue
+        if cfg is None:
+            return None
+        cfg = {k: v for k, v in cfg.items() if k != 'pause'}
+        h = dynconf.config_hash(cfg)
+        old_h, old = self.store.config_watch_get(name)
+        if old_h == h:
+            return None
+        self.store.config_watch_set(name, h, cfg)
+        if old is None:
+            return None
+        since = self.clock() - max(3 * self.config.watch.interval, 60)
+        if self.store.op_recent(name, ('config',), since):
+            return None            # это наше изменение, версия уже записана операцией
+        rows = dynconf.diff(old, cfg)
+        if not rows:
+            return None
+        vid = self.store.config_version_add(name, 'external', old, cfg)
+        summary = '; '.join(f"{r['path']}: {r['old']} → {r['new']}" for r in rows[:5])
+        more = f' и ещё {len(rows) - 5}' if len(rows) > 5 else ''
+        ev = self.store.event_add(name, 'info', 'warning', 'config_external',
+                                  f'глобальный конфиг изменён вне консоли (версия №{vid}): {summary}{more}',
+                                  channels=self._channels('warning'))
+        self.on_event()
+        return ev['id']
 
     # ---- фоновый цикл ----
     def run_forever(self):

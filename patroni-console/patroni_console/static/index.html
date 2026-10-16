@@ -36,6 +36,7 @@
     <nav class="tabs" role="tablist" aria-label="Разделы">
       <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-controls="panel-overview" aria-selected="true">Обзор</button>
       <button type="button" role="tab" id="tab-events" data-tab="events" aria-controls="panel-events" aria-selected="false">События <span id="open-count" class="count" hidden></span></button>
+      <button type="button" role="tab" id="tab-config" data-tab="config" aria-controls="panel-config" aria-selected="false">Конфиг</button>
       <button type="button" role="tab" id="tab-ops" data-tab="ops" aria-controls="panel-ops" aria-selected="false" hidden>Операции <span id="active-op" class="count running" hidden></span></button>
     </nav>
 
@@ -81,6 +82,27 @@
 
     </div>
 
+    <div id="panel-config" role="tabpanel" aria-labelledby="tab-config" class="panel" hidden>
+      <section aria-labelledby="h-cfg">
+        <h2 id="h-cfg" class="sr-only">Глобальный конфиг</h2>
+        <p class="hint">Глобальная конфигурация Patroni из DCS (GET /config). Она одна на весь кластер.</p>
+        <div class="cfg-cols">
+          <div class="table-wrap"><table id="cfg-table"><thead><tr><th>Ключ</th><th>Значение</th></tr></thead><tbody></tbody></table></div>
+          <form id="cfg-form" class="cfg-edit" hidden>
+            <label for="cfg-changes">Изменения, по одному на строку</label>
+            <textarea id="cfg-changes" rows="8" spellcheck="false" placeholder="postgresql.parameters.work_mem = 16MB&#10;maximum_lag_on_failover = 1048576&#10;postgresql.parameters.old_param = null"></textarea>
+            <p class="hint">Формат <code>ключ = значение</code>. <code>null</code> удаляет ключ. Перед применением консоль покажет разницу и проверки.</p>
+            <p id="cfg-error" class="form-error" role="alert"></p>
+            <div><button type="submit" class="primary">Проверить и применить</button></div>
+          </form>
+        </div>
+      </section>
+      <section aria-labelledby="h-cfgv">
+        <h2 id="h-cfgv">История изменений</h2>
+        <ol id="cfg-versions" class="history"></ol>
+      </section>
+    </div>
+
     <div id="panel-ops" role="tabpanel" aria-labelledby="tab-ops" class="panel" hidden>
       <section aria-labelledby="h-ops">
         <h2 id="h-ops" class="sr-only">Операции</h2>
@@ -112,6 +134,7 @@
     <h2 id="op-title"></h2>
     <p id="op-desc" class="muted"></p>
     <div id="op-fields"></div>
+    <div id="op-preview"></div>
     <div id="op-checks" class="checks" aria-live="polite"></div>
     <label id="op-ack-wrap" class="check-line" hidden><input type="checkbox" id="op-ack"> Предупреждения прочитаны, выполнять всё равно</label>
     <label id="op-force-wrap" class="check-line danger-text" hidden><input type="checkbox" id="op-force"> Выполнить принудительно</label>

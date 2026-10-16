@@ -20,6 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import hashlib
 import threading
 
+from . import dynconf
 from . import ops as ops_mod
 from . import status as status_mod
 from .etcd import EtcdClient
@@ -63,6 +64,7 @@ def _validate_params(kind, raw, cluster):
         'switchover': {'candidate', 'scheduled_at'}, 'failover': {'candidate'},
         'restart': {'node'}, 'reinitialize': {'node'}, 'rolling_restart': {'only_pending'},
         'pause': set(), 'resume': set(), 'cancel_switchover': set(),
+        'config': {'changes', 'rollback_to', 'base_hash'},
     }[kind]
     extra = set(raw) - allowed
     if extra:
@@ -79,6 +81,18 @@ def _validate_params(kind, raw, cluster):
         raise ValueError('node обязателен')
     if raw.get('scheduled_at'):
         p['scheduled_at'] = str(raw['scheduled_at'])[:40]
+    if kind == 'config':
+        if raw.get('rollback_to') not in (None, ''):
+            if raw.get('changes'):
+                raise ValueError('укажите либо changes, либо rollback_to')
+            try:
+                p['rollback_to'] = int(raw['rollback_to'])
+            except (TypeError, ValueError):
+                raise ValueError('rollback_to должен быть номером версии')
+        else:
+            p['changes'] = dynconf.validate(raw.get('changes'))
+        if raw.get('base_hash'):
+            p['base_hash'] = str(raw['base_hash'])[:32]
     if kind == 'rolling_restart':
         p['only_pending'] = bool(raw.get('only_pending', True))
     return p
@@ -248,9 +262,13 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         snap = status_mod.collect(c, patroni_client(c), pool)
         return jsonify({'ok': True, 'data': snap})
 
-    def _from_any_node(c, fn):
+    def _from_any_node(c, fn, leader=None):
+        # сначала лидер: кэш DCS на репликах отстаёт до loop_wait секунд,
+        # и /config с реплики сразу после изменения показывает старое значение
+        if leader is None:
+            leader = (store.watch_state_get(c.name) or {}).get('leader')
         errors = []
-        for n in c.nodes:
+        for n in sorted(c.nodes, key=lambda n: n.name != leader):
             try:
                 return fn(n), None
             except PatroniError as e:
@@ -313,11 +331,26 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
             return None, err('bad_request', str(e))
         pc = patroni_client(c)
         snap = status_mod.collect(c, pc, pool)
-        dyn, _ = _from_any_node(c, pc.dynamic_config)
+        dyn, _ = _from_any_node(c, pc.dynamic_config, snap.get('leader'))
+        preview = None
+        if kind == 'config':
+            if dyn is None:
+                return None, err('no_config', 'не удалось прочитать /config кластера', 502)
+            if 'rollback_to' in params:
+                v = store.config_version(cluster, params['rollback_to'])
+                if not v:
+                    return None, err('not_found', 'версия конфига не найдена', 404)
+                params['changes'] = dynconf.patch_to(dyn, v['before'])
+                if not params['changes']:
+                    return None, err('no_changes', 'текущий конфиг уже совпадает с этой версией', 412)
+            new = dynconf.merge(dyn, params['changes'])
+            preview = {'diff': dynconf.diff(dyn, new), 'base_hash': dynconf.config_hash(dyn),
+                       'changes': params['changes']}
         cks = ops_mod.checks(kind, snap, dyn, params)
         if dyn is None:
             cks.insert(0, {'level': 'block', 'code': 'no_config', 'text': 'не удалось прочитать /config кластера'})
-        return {'cluster': c, 'kind': kind, 'params': params, 'body': b, 'snap': snap, 'checks': cks}, None
+        return {'cluster': c, 'kind': kind, 'params': params, 'body': b, 'snap': snap, 'checks': cks,
+                'preview': preview}, None
 
     @app.post('/api/clusters/<cluster>/operations/precheck')
     @require('operator')
@@ -331,7 +364,8 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
             'can_run': ok or code in ('force_required',),
             'needs_force': any(c['level'] == 'force' for c in ctx['checks']),
             'needs_ack': any(c['level'] == 'warn' for c in ctx['checks']),
-            'leader': ctx['snap']['leader'], 'failover_candidates': ctx['snap']['failover_candidates']}})
+            'leader': ctx['snap']['leader'], 'failover_candidates': ctx['snap']['failover_candidates'],
+            'preview': ctx['preview']}})
 
     @app.post('/api/clusters/<cluster>/operations')
     @require('operator')
@@ -397,6 +431,17 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         if not op or op['cluster'] not in config.clusters:
             return err('not_found', 'операция не найдена', 404)
         return jsonify({'ok': True, 'data': op})
+
+    @app.get('/api/clusters/<cluster>/config/versions')
+    @require('viewer')
+    def config_versions(cluster):
+        if not get_cluster(cluster):
+            return err('not_found', 'кластер не найден', 404)
+        out = []
+        for v in store.config_versions(cluster):
+            out.append({k: v[k] for k in ('id', 'ts', 'source', 'username', 'op_id')} |
+                       {'diff': dynconf.diff(v['before'], v['after'])})
+        return jsonify({'ok': True, 'data': out})
 
     # ---------- события ----------
     @app.get('/api/clusters/<cluster>/events')
