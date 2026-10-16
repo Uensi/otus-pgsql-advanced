@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patroni Console</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form id="login-form" class="login-box" autocomplete="on">
+    <h1>Patroni Console</h1>
+    <label>Логин <input name="username" autocomplete="username" required></label>
+    <label>Пароль <input name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit">Войти</button>
+    <p id="login-error" class="form-error" role="alert"></p>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <span class="brand">Patroni Console</span>
+    <label class="cluster-pick">Кластер
+      <select id="cluster"></select>
+    </label>
+    <span class="spacer"></span>
+    <span id="updated" class="muted" aria-live="polite"></span>
+    <span id="who" class="muted"></span>
+    <button id="logout" class="link">Выйти</button>
+  </header>
+
+  <main>
+    <section id="health" class="health" aria-live="polite"></section>
+
+    <section aria-labelledby="h-repl">
+      <h2 id="h-repl">Репликация</h2>
+      <p class="hint">Длина полосы показывает, насколько реплика отстаёт от лидера.</p>
+      <div id="topology" class="topology"></div>
+    </section>
+
+    <section id="ops-section" aria-labelledby="h-ops" hidden>
+      <h2 id="h-ops">Операции</h2>
+      <p class="hint">Перед запуском консоль проверяет кластер и показывает, что может пойти не так.</p>
+      <div class="ops-bar">
+        <button data-op="switchover" data-role="operator">Switchover</button>
+        <button data-op="cancel_switchover" data-role="operator">Отменить запланированный</button>
+        <button data-op="pause" data-role="operator">Поставить на паузу</button>
+        <button data-op="resume" data-role="operator">Снять паузу</button>
+        <button data-op="restart" data-role="operator">Рестарт ноды</button>
+        <button data-op="rolling_restart" data-role="operator">Rolling restart</button>
+        <button data-op="failover" data-role="admin" class="danger">Failover</button>
+        <button data-op="reinitialize" data-role="admin" class="danger">Reinit реплики</button>
+      </div>
+      <div class="table-wrap">
+        <table id="ops">
+          <thead><tr><th>№</th><th>Операция</th><th>Параметры</th><th>Статус</th><th>Кто</th><th>Когда</th><th>Ход</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-nodes">
+      <h2 id="h-nodes">Ноды</h2>
+      <div class="table-wrap">
+        <table id="nodes">
+          <thead><tr>
+            <th>Нода</th><th>Роль</th><th>Состояние</th><th class="num">Таймлайн</th>
+            <th class="num">Лаг</th><th>LSN</th><th>Теги</th><th class="num">REST, мс</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="cols">
+      <section aria-labelledby="h-etcd">
+        <h2 id="h-etcd">etcd</h2>
+        <div id="etcd"></div>
+      </section>
+      <section aria-labelledby="h-hist">
+        <h2 id="h-hist">История переключений</h2>
+        <ol id="history" class="history"></ol>
+      </section>
+    </div>
+  </main>
+</div>
+
+<dialog id="op-dialog" aria-labelledby="op-title">
+  <form id="op-form" method="dialog">
+    <h2 id="op-title"></h2>
+    <p id="op-desc" class="muted"></p>
+    <div id="op-fields"></div>
+    <div id="op-checks" class="checks" aria-live="polite"></div>
+    <label id="op-ack-wrap" class="check-line" hidden><input type="checkbox" id="op-ack"> Предупреждения прочитаны, выполнять всё равно</label>
+    <label id="op-force-wrap" class="check-line danger-text" hidden><input type="checkbox" id="op-force"> Выполнить принудительно</label>
+    <label class="confirm">Чтобы подтвердить, введите имя кластера <strong id="op-cluster"></strong>
+      <input id="op-confirm" autocomplete="off" spellcheck="false"></label>
+    <p id="op-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" id="op-cancel" class="secondary">Закрыть</button>
+      <button type="button" id="op-run" disabled>Выполнить</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>
