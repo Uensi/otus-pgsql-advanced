@@ -20,12 +20,14 @@ class EtcdClient:
         headers = {}
         if auth and self.cfg.username:
             headers['Authorization'] = self._token(endpoint)
-        r = self.session.post(endpoint + path, json=payload, headers=headers, timeout=self.timeout)
+        r = self.session.post(endpoint + path, json=payload, headers=headers, timeout=self.timeout,
+                              allow_redirects=False)
         if r.status_code == 401 and auth and self.cfg.username:
             # токен истёк — получаем новый один раз
             self._tokens.pop(endpoint, None)
             headers['Authorization'] = self._token(endpoint)
-            r = self.session.post(endpoint + path, json=payload, headers=headers, timeout=self.timeout)
+            r = self.session.post(endpoint + path, json=payload, headers=headers, timeout=self.timeout,
+                              allow_redirects=False)
         r.raise_for_status()
         return r.json()
 

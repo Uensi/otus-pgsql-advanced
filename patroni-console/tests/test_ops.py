@@ -273,3 +273,13 @@ def test_one_operation_per_cluster(config, sim):
         s.op_create('test', 'resume', {}, 'oper')
     s.op_interrupt_stale()
     s.op_create('test', 'resume', {}, 'oper')
+
+
+def test_status_is_fresh_right_after_operation(app, sim):
+    """Статус кэшируется на 2 секунды, но операция сбрасывает кэш: сразу после паузы видно paused."""
+    c = client(app, 'admin')
+    assert not c.get('/api/clusters/test/status').get_json()['data']['paused']
+    run(c, 'pause', acknowledge_warnings=True)
+    assert c.get('/api/clusters/test/status').get_json()['data']['paused']
+    run(c, 'resume')
+    assert not c.get('/api/clusters/test/status').get_json()['data']['paused']

@@ -25,7 +25,7 @@ class Outbox:
         box = self
 
         class S:
-            def post(self, url, json=None, headers=None, timeout=None):
+            def post(self, url, json=None, headers=None, timeout=None, **kw):
                 if box.fail:
                     box.fail -= 1
                     raise requests.ConnectionError(f'cannot reach {url}')
@@ -121,6 +121,35 @@ def test_leader_change_by_operation_is_info(app, sim):
     lc = [e for e in events(app) if e['kind'] == 'leader_change']
     assert lc[0]['level'] == 'info' and lc[0]['op_id'] == op['id']
 
+
+def test_failover_right_after_switchover_is_still_critical(app, sim):
+    """Авария через полминуты после switchover не должна сойти за этот switchover."""
+    tick(app)
+    c = app.test_client()
+    r = c.post('/api/auth/login', json={'username': 'oper', 'password': PASSWORDS['oper']})
+    csrf = r.get_json()['data']['csrf_token']
+    c.post('/api/clusters/test/operations', headers={'X-CSRF-Token': csrf},
+           json={'kind': 'switchover', 'params': {'candidate': 'n2'}, 'confirm': 'test'})
+    tick(app)
+    sim._promote('n3')
+    tick(app)
+    lc = [e for e in events(app) if e['kind'] == 'leader_change']
+    by_text = {('n1 → n2' in e['text'], 'n2 → n3' in e['text']): e['level'] for e in lc}
+    assert by_text == {(True, False): 'info', (False, True): 'critical'}
+
+def test_same_pair_failover_after_switchover_is_critical(app, sim):
+    """switchover n1 → n2, потом n2 → n1 вручную, потом авария n1 → n2: та же пара, что у операции."""
+    tick(app)
+    c = app.test_client()
+    r = c.post('/api/auth/login', json={'username': 'oper', 'password': PASSWORDS['oper']})
+    csrf = r.get_json()['data']['csrf_token']
+    c.post('/api/clusters/test/operations', headers={'X-CSRF-Token': csrf},
+           json={'kind': 'switchover', 'params': {'candidate': 'n2'}, 'confirm': 'test'})
+    tick(app)
+    sim._promote('n1'); tick(app)
+    sim._promote('n2'); tick(app)
+    lc = [e for e in events(app) if e['kind'] == 'leader_change']
+    assert [e['level'] for e in lc] == ['info', 'critical', 'critical']
 
 def test_scheduled_switchover_is_info(app, sim):
     sim.scheduled = {'at': '2099-01-01T00:00:00+00:00'}

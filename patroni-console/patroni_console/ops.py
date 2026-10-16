@@ -291,6 +291,10 @@ def gate(cks, acknowledge_warnings, force, role):
 
 
 # ---------------- исполнитель ----------------
+STATUS_RU = {'succeeded': 'выполнена', 'warning': 'выполнена с замечаниями', 'failed': 'не выполнена',
+             'unknown': 'результат неизвестен', 'interrupted': 'прервана', 'cancelled': 'отменена'}
+
+
 class Runner:
     def __init__(self, store, cluster, client, timings=None, sleep=time.sleep, clock=time.monotonic):
         self.store = store
@@ -318,7 +322,7 @@ class Runner:
         except Exception as e:  # noqa: BLE001 — операция обязана завершиться с понятным статусом
             log.exception('операция упала', extra={'cluster': self.cluster.name})
             status, result = 'failed', {'error': f'внутренняя ошибка: {e.__class__.__name__}: {e}'}
-        self.store.op_update(op_id, status=status, result=result, log_line=f'итог: {status}')
+        self.store.op_update(op_id, status=status, result=result, log_line=f'итог: {STATUS_RU.get(status, status)}')
         self.store.audit(f'op:{op["kind"]}', 'ok' if status in ('succeeded', 'scheduled', 'cancelled') else 'error',
                          op['created_by'], cluster=self.cluster.name,
                          params={'operation_id': op_id, **op['params']}, detail=f'{status}: {result}')
@@ -501,6 +505,7 @@ class Runner:
             if not ok:
                 return 'failed', {'done': done, 'failed_on': name, **(err or {})}
             done.append(name)
+        moved = {}
         if targets['leader']:
             old = targets['leader']
             s = self.snap()
@@ -512,11 +517,12 @@ class Runner:
             st, res = self._change_leader(op_id, 'switchover', {'candidate': pool[0]['name']})
             if st not in ('succeeded',):
                 return 'failed', {'done': done, 'failed_on': f'switchover: {st}', **(res or {})}
+            moved = {'old_leader': res['old_leader'], 'new_leader': res['new_leader']}
             ok, err = self._restart_one(op_id, old)
             if not ok:
-                return 'failed', {'done': done, 'failed_on': old, **(err or {})}
+                return 'failed', {'done': done, 'failed_on': old, **moved, **(err or {})}
             done.append(old)
-        return 'succeeded', {'restarted': done}
+        return 'succeeded', {'restarted': done, **moved}
 
     def _reinitialize(self, op_id, p):
         name = p['node']

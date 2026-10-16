@@ -38,7 +38,7 @@ class PatroniClient:
     def _request(self, node, method, path, timeout=None, **kw):
         url = node.url + path
         try:
-            r = self.session.request(method, url, timeout=timeout or self.timeout, **kw)
+            r = self.session.request(method, url, timeout=timeout or self.timeout, allow_redirects=False, **kw)
         except (requests.ConnectTimeout, requests.exceptions.SSLError) as e:
             raise PatroniError(node.name, f'нет связи: {e.__class__.__name__}') from e
         except (requests.ReadTimeout, requests.exceptions.ChunkedEncodingError) as e:

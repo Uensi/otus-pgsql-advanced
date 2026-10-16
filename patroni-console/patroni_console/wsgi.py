@@ -1,7 +1,8 @@
 """Точка входа WSGI. Запускать ОДНИМ процессом:
 
-    PATRONI_CONSOLE_CONFIG=/etc/patroni-console/config.yaml \
-    gunicorn -w 1 --threads 8 -b 127.0.0.1:8080 'patroni_console.wsgi:app'
+    gunicorn -c deploy/gunicorn.conf.py patroni_console.wsgi:app
+
+HTTPS обслуживает сам gunicorn (сертификат и ключ — в deploy/gunicorn.conf.py через переменные окружения).
 
 Несколько воркеров запустят несколько наблюдателей и продублируют уведомления.
 """

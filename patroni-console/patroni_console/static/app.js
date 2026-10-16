@@ -115,7 +115,7 @@
       : st.health === 'degraded' ? 'Есть замечания, требующие внимания' : 'Кластер в аварийном состоянии';
     const ul = el('ul');
     for (const w of st.warnings || []) ul.append(el('li', { class: w.level }, (w.node ? w.node + ': ' : '') + w.text));
-    box.replaceChildren(el('p', { class: 'verdict' }, verdict), (st.warnings || []).length ? ul : null);
+    box.replaceChildren(el('p', { class: 'verdict' }, verdict), ...((st.warnings || []).length ? [ul] : []));
   }
 
   const SVG = 'http://www.w3.org/2000/svg';
@@ -193,7 +193,12 @@
     ol.replaceChildren(...rows.slice(0, 15).map((r) => el('li', null,
       el('strong', null, 'Таймлайн ' + r.timeline + ' → ' + (r.timeline + 1)),
       ' ' + (r.new_leader ? 'новый лидер ' + r.new_leader : ''),
-      el('div', { class: 'muted' }, (r.timestamp || '') + ' ' + (r.reason || '')))));
+      el('div', { class: 'muted' }, [histTime(r.timestamp), r.reason].filter(Boolean).join(', ')))));
+  }
+
+  function histTime(ts) {
+    const d = ts ? new Date(ts) : null;
+    return d && !isNaN(d) ? d.toLocaleString() : (ts || '');
   }
 
   // ---------- конфиг ----------

@@ -67,6 +67,20 @@ def collect(cluster, client, pool=None):
     return build(cluster, probes, view, view_from, view_err)
 
 
+def _fmt_lsn(v):
+    """Целое из /patroni -> привычная запись PostgreSQL вида 0/3000060."""
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+        return None
+    return f'{v >> 32:X}/{v & 0xFFFFFFFF:X}'
+
+
+def _node_lsn(d):
+    """LSN из ответа /patroni: /cluster в Patroni 4.0 его не отдаёт.
+    У лидера — текущая позиция записи, у реплики — до куда проиграно."""
+    x = d.get('xlog') or {}
+    return _fmt_lsn(x.get('location') if 'location' in x else x.get('replayed_location'))
+
+
 def build(cluster, probes, view, view_from=None, view_err=()):
     """Чистая функция: из сырых ответов — снимок. Отдельно, чтобы тестировать без сети."""
     warnings = []
@@ -97,7 +111,7 @@ def build(cluster, probes, view, view_from=None, view_err=()):
             'lag_unknown': 'lag' in m and _lag(m.get('lag')) is None,
             'receive_lag': _lag(m.get('receive_lag')),
             'replay_lag': _lag(m.get('replay_lag')),
-            'lsn': m.get('lsn'),
+            'lsn': m.get('lsn') or _node_lsn(d),
             'host': m.get('host'),
             'port': m.get('port'),
             'tags': tags,

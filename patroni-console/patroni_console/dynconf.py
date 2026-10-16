@@ -54,6 +54,12 @@ RESTART = {'shared_buffers', 'max_connections', 'max_wal_senders', 'max_replicat
 # на репликах должны быть не меньше, чем на лидере: уменьшать — с пониманием порядка рестартов
 HOT_STANDBY_MIN = {'max_connections', 'max_worker_processes', 'max_wal_senders', 'max_prepared_transactions',
                    'max_locks_per_transaction'}
+# выполняют команды или загружают код от имени postgres на всех нодах
+DANGEROUS = {'archive_command', 'archive_cleanup_command', 'recovery_end_command', 'ssl_passphrase_command',
+             'shared_preload_libraries', 'local_preload_libraries', 'session_preload_libraries',
+             'dynamic_library_path', 'archive_library'}
+# могут содержать пароли: не показываем роли ниже admin
+SECRET_KEY_RE = re.compile(r'password|passwd|secret|conninfo|command', re.I)
 _PARAM_RE = re.compile(r'^[a-z][a-z0-9_.]{0,62}$')
 
 
@@ -71,6 +77,8 @@ def _check_value(path, spec, v):
         lo, hi = spec[1], spec[2]
         if lo is not None and v < lo:
             raise ValueError(f'{path}: не меньше {lo}')
+        if hi is not None and v > hi:
+            raise ValueError(f'{path}: не больше {hi}')
     elif kind == 'bool' and not isinstance(v, bool):
         raise ValueError(f'{path}: ожидается true или false')
     elif kind == 'enum' and v not in spec[1]:
@@ -105,6 +113,23 @@ def validate(changes):
             if isinstance(v, (dict, list)):
                 raise ValueError(f'postgresql.parameters.{name}: ожидается скалярное значение')
     return changes
+
+
+def redact(cfg):
+    """Копия конфига без значений, похожих на секреты (для ролей ниже admin)."""
+    if isinstance(cfg, dict):
+        out = {}
+        for k, v in cfg.items():
+            if k in ('recovery_conf', 'standby_cluster') and isinstance(v, dict):
+                out[k] = {kk: '***' for kk in v}
+            elif SECRET_KEY_RE.search(str(k)) and not isinstance(v, (dict, list)):
+                out[k] = '***'
+            else:
+                out[k] = redact(v)
+        return out
+    if isinstance(cfg, list):
+        return [redact(x) for x in cfg]
+    return cfg
 
 
 def merge(base, patch):
@@ -194,6 +219,8 @@ def checks(current, changes, base_hash=None):
     wl = new_params.get('wal_level')
     if 'wal_level' in changed_params and str(wl) == 'minimal':
         c('block', 'wal_level', 'wal_level=minimal несовместим с репликацией')
+    for name in sorted(changed_params & DANGEROUS):
+        c('force', 'dangerous_param', f'{name} выполняет команды или загружает код от имени postgres на всех нодах')
     restart = sorted(changed_params & RESTART)
     if restart:
         c('warn', 'needs_restart', f'потребуется рестарт PostgreSQL ({", ".join(restart)}): '

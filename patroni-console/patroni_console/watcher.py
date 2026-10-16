@@ -132,7 +132,8 @@ class Watcher:
         if not prev or not prev['leader'] or prev['leader'] == leader:
             return []
         since = self.clock() - max(3 * self.config.watch.interval, 60)
-        op = self.store.op_recent(name, LEADER_OPS, since)
+        op = next((o for o in self.store.ops_recent(name, LEADER_OPS, since)
+                   if self._explains(o, prev['leader'], leader)), None)
         tl = f', таймлайн {timeline}' if timeline else ''
         if op:
             level, op_id = 'info', op['id']
@@ -146,6 +147,20 @@ class Watcher:
         ev = self.store.event_add(name, 'leader_change', level, 'leader_change', text, node=leader,
                                   op_id=op_id, channels=self._channels(level))
         return [ev['id']]
+
+    @staticmethod
+    def _explains(op, old, new):
+        """Объясняет ли операция консоли именно эту смену лидера.
+
+        Идущая операция объясняет любую смену. Завершённая — только ту, которую она
+        сама сделала: иначе авария через минуту после switchover сошла бы за него.
+        Каждая операция объясняет не больше одной смены (это отбирает store.ops_recent):
+        если Patroni после аварии выбрал того же лидера, что и прошлый switchover,
+        тот switchover уже «израсходован»."""
+        if op['status'] in ('pending', 'running'):
+            return True
+        res = op.get('result') or {}
+        return res.get('new_leader') == new and res.get('old_leader') in (None, old)
 
     def check_config(self, cluster, snap, client):
         """Замечает изменения глобального конфига, сделанные не через консоль (patronictl edit-config и т.п.)."""
@@ -165,16 +180,23 @@ class Watcher:
         old_h, old = self.store.config_watch_get(name)
         if old_h == h:
             return None
+        active = self.store.op_recent(name, ('config',), self.clock())
+        if active and active['status'] in ('pending', 'running'):
+            return None            # операция консоли ещё идёт: решим на следующей проверке
         self.store.config_watch_set(name, h, cfg)
         if old is None:
             return None
-        since = self.clock() - max(3 * self.config.watch.interval, 60)
-        if self.store.op_recent(name, ('config',), since):
-            return None            # это наше изменение, версия уже записана операцией
-        rows = dynconf.diff(old, cfg)
+        # своё изменение узнаём по содержимому: текущий конфиг совпадает с последней версией консоли
+        last = next(iter(self.store.config_versions(name, 1)), None)
+        if last and last['source'] == 'console' and \
+                dynconf.config_hash({k: v for k, v in last['after'].items() if k != 'pause'}) == h:
+            return None
+        # точка отсчёта — последнее известное состояние: после изменения из консоли это его результат
+        base = {k: v for k, v in last['after'].items() if k != 'pause'} if last and last['source'] == 'console' else old
+        rows = dynconf.diff(base, cfg)
         if not rows:
             return None
-        vid = self.store.config_version_add(name, 'external', old, cfg)
+        vid = self.store.config_version_add(name, 'external', base, cfg)
         summary = '; '.join(f"{r['path']}: {r['old']} → {r['new']}" for r in rows[:5])
         more = f' и ещё {len(rows) - 5}' if len(rows) > 5 else ''
         ev = self.store.event_add(name, 'info', 'warning', 'config_external',
@@ -194,7 +216,7 @@ class Watcher:
                 self.tick(c)
             if time.time() - self._last_trim > 3600:
                 try:
-                    self.store.events_trim(self.config.watch.keep_days)
+                    self.store.housekeeping(self.config.watch.keep_days)
                     self._last_trim = time.time()
                 except Exception:
                     log.exception('наблюдатель: не удалось почистить старые события')

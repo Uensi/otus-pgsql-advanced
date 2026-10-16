@@ -153,3 +153,15 @@ def test_watcher_ignores_console_change(app, sim):
     run(login(app), {'changes': {'ttl': 40}})
     w.tick(cl)
     assert not [e for e in w.store.events_list('test') if e['code'] == 'config_external']
+
+
+def test_external_change_right_after_console_change_is_detected(app, sim):
+    """patronictl edit-config сразу после изменения из консоли не должен потеряться."""
+    w = app.extensions['pc_watcher']
+    cl = app.config['PC'].clusters['test']
+    w.tick(cl)
+    run(login(app), {'changes': {'ttl': 40}})
+    sim.config['loop_wait'] = 6
+    w.tick(cl)
+    ext = [e for e in w.store.events_list('test') if e['code'] == 'config_external']
+    assert len(ext) == 1 and 'loop_wait' in ext[0]['text'] and 'ttl' not in ext[0]['text']

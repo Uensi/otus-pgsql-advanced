@@ -202,13 +202,15 @@ def test_08_unplanned_failover_detected(app, http):
     s = status(http)
     old = s['leader']
     kill_node(old)
-    new = wait_for(lambda: (lambda x: x['leader'] if x['leader'] and x['leader'] != old else None)(status(http)), 90)
-    assert new, 'новый лидер не выбран'
-    tick(app, 3, 1)
-    lc = [e for e in events(app) if e['kind'] == 'leader_change']
-    assert lc[0]['level'] == 'critical' and f'{old} → {new}' in lc[0]['text']
-    assert any(e['kind'] == 'opened' and e['code'] == 'unreachable' and e['node'] == old for e in events(app))
-    start_node(old)
+    try:
+        new = wait_for(lambda: (lambda x: x['leader'] if x['leader'] and x['leader'] != old else None)(status(http)), 90)
+        assert new, 'новый лидер не выбран'
+        tick(app, 3, 1)
+        lc = [e for e in events(app) if e['kind'] == 'leader_change']
+        assert lc[0]['level'] == 'critical' and f'{old} → {new}' in lc[0]['text'], [(e['id'], e['level'], e['text']) for e in lc]
+        assert any(e['kind'] == 'opened' and e['code'] == 'unreachable' and e['node'] == old for e in events(app))
+    finally:
+        start_node(old)            # следующие сценарии ждут три ноды
     assert wait_for(lambda: healthy(http), 120), 'старый лидер не вернулся'
     tick(app, 3, 1)
     assert any(e['kind'] == 'resolved' and e['node'] == old for e in events(app))

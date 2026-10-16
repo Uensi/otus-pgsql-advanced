@@ -4,3 +4,5 @@ config.yaml
 *.db-shm
 __pycache__/
 .pytest_cache/
+build/
+*.egg-info/

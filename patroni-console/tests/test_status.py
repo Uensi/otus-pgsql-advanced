@@ -93,3 +93,16 @@ def test_replica_not_streaming(config):
     v = healthy_view()
     v['members'][2]['state'] = 'starting'
     assert ('replica_state', 'n3') in codes(snap(config, v))
+
+
+def test_lsn_taken_from_node_when_cluster_view_has_none(config):
+    """Patroni 4.0 не кладёт lsn в /cluster: берём xlog из /patroni каждой ноды."""
+    view = healthy_view()
+    for m in view['members']:
+        m.pop('lsn', None)
+    views = node_views()
+    views['n1']['xlog'] = {'location': 0x105000060}
+    views['n2']['xlog'] = {'received_location': 0x5000060, 'replayed_location': 0x4FFF060}
+    st = snap(config, view=view, views=views)
+    lsn = {m['name']: m['lsn'] for m in st['members']}
+    assert lsn == {'n1': '1/5000060', 'n2': '0/4FFF060', 'n3': None}

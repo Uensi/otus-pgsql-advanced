@@ -18,6 +18,10 @@ MAX_ATTEMPTS = 6
 ICON = {'critical': '🔴', 'warning': '🟠', 'info': '🔵'}
 
 
+class DeliveryError(Exception):
+    pass
+
+
 def channels_for(level, channels):
     return [c.name for c in channels if RANK[level] >= RANK[c.min_level]]
 
@@ -46,18 +50,24 @@ class Notifier:
             body = {k: event[k] for k in ('id', 'cluster', 'ts', 'kind', 'level', 'code', 'node', 'text', 'op_id')}
             body['event_id'] = body.pop('id')
             body['message'] = message(event)
-            r = s.post(ch.url, json=body, headers=headers, timeout=ch.timeout)
+            r = s.post(ch.url, json=body, headers=headers, timeout=ch.timeout, allow_redirects=False)
         else:
-            r = s.post(f'{ch.url}/bot{ch.token}/sendMessage', timeout=ch.timeout,
+            r = s.post(f'{ch.url}/bot{ch.token}/sendMessage', timeout=ch.timeout, allow_redirects=False,
                        json={'chat_id': ch.chat_id, 'text': message(event), 'disable_web_page_preview': True})
         if not 200 <= r.status_code < 300:
-            raise RuntimeError(f'HTTP {r.status_code}: {(r.text or "")[:200]}')
+            raise DeliveryError(f'получатель ответил HTTP {r.status_code}')
 
-    def _safe_error(self, ch, e):
-        text = f'{type(e).__name__}: {e}'
-        if ch.token:  # токен telegram стоит в URL и попадает в текст исключений requests
-            text = text.replace(ch.token, '***')
-        return text
+    @staticmethod
+    def _safe_error(ch, e):
+        """Текст ошибки без секретов. Он виден всем пользователям в ленте событий, поэтому
+        ни URL (в нём бывает секрет webhook или токен бота), ни тело ответа сюда не попадают."""
+        if isinstance(e, DeliveryError):
+            return str(e)
+        if isinstance(e, requests.Timeout):
+            return 'таймаут'
+        if isinstance(e, requests.ConnectionError):
+            return 'нет связи с получателем'
+        return type(e).__name__
 
     def drain(self):
         """Отправляет всё, что пора отправить. Возвращает число успешных отправок."""

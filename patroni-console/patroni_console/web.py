@@ -10,6 +10,7 @@
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -31,9 +32,8 @@ from .watcher import Watcher
 
 log = logging.getLogger('patroni_console')
 ROLE_LEVEL = {'viewer': 0, 'operator': 1, 'admin': 2}
-COOKIE = 'pc_session'
-# фиктивный хеш: проверка пароля для несуществующего пользователя занимает то же время
-_DUMMY_HASH = generate_password_hash(secrets.token_hex(16))
+MAX_PASSWORD = 256
+_RID_RE = re.compile(r'^[A-Za-z0-9._-]{1,64}$')
 
 
 def require(role):
@@ -106,6 +106,14 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
     это делает start_background() (см. wsgi.py)."""
     app = Flask(__name__, static_folder=None)
     app.config['PC'] = config
+    app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
+    # с HTTPS cookie получает префикс __Host-: только этот хост, только Secure, путь /
+    cookie_name = '__Host-pc_session' if config.cookie_secure else 'pc_session'
+    # фиктивный хеш тем же методом, что у пользователей: время проверки не выдаёт, есть ли логин
+    methods = [u.password_hash.split('$', 1)[0] for u in config.users.values()]
+    dummy_hash = generate_password_hash(secrets.token_hex(16), method=max(set(methods), key=methods.count))
+    status_cache = {}
+    status_lock = threading.Lock()
     store = store or Store(config.db_path)
     store.op_interrupt_stale()
     pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix='probe')
@@ -143,7 +151,8 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
     # ---------- конвейер запроса ----------
     @app.before_request
     def _gate():
-        g.request_id = request.headers.get('X-Request-Id') or secrets.token_hex(8)
+        rid = request.headers.get('X-Request-Id', '')
+        g.request_id = rid if _RID_RE.match(rid) else secrets.token_hex(8)
         g.t0 = time.monotonic()
         g.user = None
         view = app.view_functions.get(request.endpoint) if request.endpoint else None
@@ -155,13 +164,13 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
             return err('forbidden', 'маршрут не настроен', 403)
         if min_role == 'public':
             return None
-        sess = store.get_session(request.cookies.get(COOKIE), current_role)
+        sess = store.get_session(request.cookies.get(cookie_name), current_role)
         if not sess:
             return err('unauthorized', 'требуется вход', 401)
         g.user = sess
         if request.method not in ('GET', 'HEAD', 'OPTIONS'):
             token = request.headers.get('X-CSRF-Token', '')
-            if not secrets.compare_digest(token, sess['csrf']):
+            if not secrets.compare_digest(token.encode('utf-8', 'replace'), sess['csrf'].encode()):
                 return err('csrf', 'неверный CSRF-токен', 403)
         if ROLE_LEVEL[sess['role']] < ROLE_LEVEL[min_role]:
             store.audit(request.endpoint, 'denied', sess['username'], remote(),
@@ -175,7 +184,9 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         resp.headers['X-Content-Type-Options'] = 'nosniff'
         resp.headers['X-Frame-Options'] = 'DENY'
         resp.headers['Referrer-Policy'] = 'no-referrer'
-        resp.headers['Content-Security-Policy'] = "default-src 'self'; frame-ancestors 'none'"
+        resp.headers['Content-Security-Policy'] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+        if request.is_secure:
+            resp.headers['Strict-Transport-Security'] = 'max-age=31536000'
         if request.path.startswith('/api/'):
             resp.headers['Cache-Control'] = 'no-store'
         log.info('request', extra={
@@ -212,31 +223,33 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
     def login():
         b = request.get_json(silent=True) or {}
         username = str(b.get('username') or '')[:64]
-        password = str(b.get('password') or '')
+        password = str(b.get('password') or '')[:MAX_PASSWORD]
         keys = [f'user:{username}', f'addr:{remote()}']
         if store.login_blocked(keys):
-            store.audit('login', 'denied', username, remote(), detail='throttled', request_id=g.request_id)
+            # без записи в аудит: иначе поток запросов раздувает базу
             return err('throttled', 'слишком много попыток, подождите', 429)
+        # попытка учитывается до проверки пароля: параллельные запросы не проскочат лимит
+        store.login_failed(keys)
         u = config.users.get(username)
-        ok = check_password_hash(u.password_hash if u else _DUMMY_HASH, password) and u is not None
+        ok = check_password_hash(u.password_hash if u else dummy_hash, password) and u is not None
         if not ok:
-            store.login_failed(keys)
             store.audit('login', 'denied', username, remote(), request_id=g.request_id)
             return err('bad_credentials', 'неверный логин или пароль', 401)
         store.login_ok(keys)
         sid, csrf = store.create_session(u.name, u.role, remote())
         store.audit('login', 'ok', u.name, remote(), request_id=g.request_id)
         resp = jsonify({'ok': True, 'data': {'username': u.name, 'role': u.role, 'csrf_token': csrf}})
-        resp.set_cookie(COOKIE, sid, httponly=True, secure=config.cookie_secure, samesite='Strict', path='/')
+        resp.set_cookie(cookie_name, sid, httponly=True, secure=config.cookie_secure, samesite='Strict', path='/',
+                        max_age=12 * 3600)
         return resp
 
     @app.post('/api/auth/logout')
     @require('viewer')
     def logout():
-        store.delete_session(request.cookies.get(COOKIE))
+        store.delete_session(request.cookies.get(cookie_name))
         store.audit('logout', 'ok', g.user['username'], remote(), request_id=g.request_id)
         resp = jsonify({'ok': True})
-        resp.delete_cookie(COOKIE, path='/')
+        resp.delete_cookie(cookie_name, path='/', secure=config.cookie_secure, samesite='Strict')
         return resp
 
     @app.get('/api/auth/me')
@@ -259,7 +272,14 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         c = get_cluster(cluster)
         if not c:
             return err('not_found', 'кластер не найден', 404)
+        # короткий кэш: много открытых вкладок не превращаются в шквал запросов к нодам
+        with status_lock:
+            hit = status_cache.get(cluster)
+        if hit and time.monotonic() - hit[0] < 2.0:
+            return jsonify({'ok': True, 'data': hit[1]})
         snap = status_mod.collect(c, patroni_client(c), pool)
+        with status_lock:
+            status_cache[cluster] = (time.monotonic(), snap)
         return jsonify({'ok': True, 'data': snap})
 
     def _from_any_node(c, fn, leader=None):
@@ -302,7 +322,7 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         data, errors = _from_any_node(c, pc.dynamic_config)
         if data is None:
             return err('unavailable', 'ни одна нода не ответила', 502, details=errors)
-        return jsonify({'ok': True, 'data': data})
+        return jsonify({'ok': True, 'data': data if g.user['role'] == 'admin' else dynconf.redact(data)})
 
     @app.get('/api/clusters/<cluster>/etcd')
     @require('viewer')
@@ -381,8 +401,14 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
                     [b0['kind'], _validate_params(b0['kind'], b0.get('params'), c0)], sort_keys=True).encode()).hexdigest()
             except ValueError:
                 pass
+        kind0 = b0.get('kind')
+        if kind0 in ops_mod.KINDS and ROLE_LEVEL[g.user['role']] < ROLE_LEVEL[ops_mod.KINDS[kind0]]:
+            store.audit(f'op:{kind0}', 'denied', g.user['username'], remote(), cluster=cluster, request_id=g.request_id)
+            return err('forbidden', f'операция {kind0} требует роли {ops_mod.KINDS[kind0]}', 403)
         if key and rhash:
-            prev, prev_hash = store.op_by_key(cluster, key)
+            prev, prev_hash = store.op_by_key(cluster, key, g.user['username'])
+            if prev_hash == 'foreign':
+                return err('idempotency_conflict', 'ключ уже использован другим пользователем', 409)
             if prev:
                 if prev_hash != rhash:
                     return err('idempotency_conflict', 'ключ уже использован для другой операции', 409)
@@ -411,10 +437,18 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
                     params={'operation_id': op['id'], **ctx['params'], 'force': bool(b.get('force'))},
                     detail='запуск', request_id=g.request_id)
         runner = ops_mod.Runner(store, ctx['cluster'], patroni_client(ctx['cluster']), ops_timings)
+
+        def run_and_forget_status(o):
+            try:
+                runner.run(o)
+            finally:
+                # операция поменяла кластер: следующий запрос статуса не должен попасть в старый кэш
+                with status_lock:
+                    status_cache.pop(cluster, None)
         if ops_sync:
-            runner.run(op)
+            run_and_forget_status(op)
         else:
-            threading.Thread(target=runner.run, args=(op,), name=f'op-{op["id"]}', daemon=True).start()
+            threading.Thread(target=run_and_forget_status, args=(op,), name=f'op-{op["id"]}', daemon=True).start()
         return jsonify({'ok': True, 'data': store.op_get(op['id'])}), 202
 
     @app.get('/api/clusters/<cluster>/operations')
@@ -438,9 +472,11 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         if not get_cluster(cluster):
             return err('not_found', 'кластер не найден', 404)
         out = []
+        admin = g.user['role'] == 'admin'
         for v in store.config_versions(cluster):
+            before, after = (v['before'], v['after']) if admin else (dynconf.redact(v['before']), dynconf.redact(v['after']))
             out.append({k: v[k] for k in ('id', 'ts', 'source', 'username', 'op_id')} |
-                       {'diff': dynconf.diff(v['before'], v['after'])})
+                       {'diff': dynconf.diff(before, after)})
         return jsonify({'ok': True, 'data': out})
 
     # ---------- события ----------

@@ -3,7 +3,9 @@
 Одна база, один процесс. Соединение открывается на каждую операцию:
 нагрузка у консоли — единицы запросов в секунду.
 """
+import hashlib
 import json
+import os
 import secrets
 import sqlite3
 import time
@@ -125,6 +127,8 @@ CREATE TABLE IF NOT EXISTS login_failures (
 CREATE INDEX IF NOT EXISTS login_failures_key ON login_failures(key, ts);
 """
 
+AUDIT_KEEP_DAYS = 365
+
 SESSION_IDLE = 2 * 3600        # без активности
 SESSION_ABSOLUTE = 12 * 3600   # жёсткий предел
 LOGIN_WINDOW = 15 * 60
@@ -144,6 +148,8 @@ class IdempotencyConflict(Exception):
 class Store:
     def __init__(self, path):
         self.path = path
+        if path != ':memory:' and not os.path.exists(path):
+            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))   # аудит и конфиги: только владельцу
         with self._db() as db:
             db.executescript(SCHEMA)
             cols = {r['name'] for r in db.execute('PRAGMA table_info(watch_state)')}
@@ -163,20 +169,26 @@ class Store:
             db.close()
 
     # ---- сессии ----
+    @staticmethod
+    def _sid(sid):
+        # в базе только хеш: копия базы не даёт войти чужой сессией
+        return hashlib.sha256(sid.encode()).hexdigest()
+
     def create_session(self, username, role, remote_addr):
         sid = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
         now = time.time()
         with self._db() as db:
             db.execute('INSERT INTO sessions VALUES (?,?,?,?,?,?,?)',
-                       (sid, username, role, csrf, now, now, remote_addr))
+                       (self._sid(sid), username, role, csrf, now, now, remote_addr))
         return sid, csrf
 
     def get_session(self, sid, current_role=None):
         """Возвращает живую сессию и продлевает её. current_role — роль из
         текущего конфига: если пользователя удалили или понизили, сессия гаснет."""
-        if not sid:
+        if not sid or len(sid) > 128:
             return None
+        sid = self._sid(sid)
         now = time.time()
         with self._db() as db:
             row = db.execute('SELECT * FROM sessions WHERE id=?', (sid,)).fetchone()
@@ -191,8 +203,20 @@ class Store:
             return dict(row)
 
     def delete_session(self, sid):
+        if not sid:
+            return
         with self._db() as db:
-            db.execute('DELETE FROM sessions WHERE id=?', (sid,))
+            db.execute('DELETE FROM sessions WHERE id=?', (self._sid(sid),))
+
+    def housekeeping(self, events_keep_days):
+        """Чистка: просроченные сессии, старые попытки входа, аудит и события."""
+        now = time.time()
+        with self._db() as db:
+            db.execute('DELETE FROM sessions WHERE last_seen<? OR created_at<?',
+                       (now - SESSION_IDLE, now - SESSION_ABSOLUTE))
+            db.execute('DELETE FROM login_failures WHERE ts<?', (now - LOGIN_WINDOW,))
+            db.execute('DELETE FROM audit WHERE ts<?', (now - AUDIT_KEEP_DAYS * 86400,))
+        self.events_trim(events_keep_days)
 
     # ---- ограничение входа: по аккаунту и по адресу ----
     def login_blocked(self, keys):
@@ -225,7 +249,7 @@ class Store:
                 row = db.execute('SELECT * FROM operations WHERE cluster=? AND idempotency_key=?',
                                  (cluster, idempotency_key)).fetchone()
                 if row:
-                    if row['request_hash'] != request_hash:
+                    if row['request_hash'] != request_hash or row['created_by'] != user:
                         raise IdempotencyConflict()
                     return self._op(row), False
             try:
@@ -241,9 +265,11 @@ class Store:
             row = db.execute('SELECT * FROM operations WHERE id=?', (cur.lastrowid,)).fetchone()
         return self._op(row), True
 
-    def op_by_key(self, cluster, key):
+    def op_by_key(self, cluster, key, user=None):
         with self._db() as db:
             row = db.execute('SELECT * FROM operations WHERE cluster=? AND idempotency_key=?', (cluster, key)).fetchone()
+        if row and user is not None and row['created_by'] != user:
+            return None, 'foreign'
         return (self._op(row), row['request_hash']) if row else (None, None)
 
     def op_update(self, op_id, status=None, result=None, log_line=None):
@@ -390,6 +416,18 @@ class Store:
                 "AND (status IN ('pending','running') OR updated_at>=?) ORDER BY id DESC LIMIT 1",
                 (cluster, *kinds, since)).fetchone()
         return self._op(row) if row else None
+
+    def ops_recent(self, cluster, kinds, since):
+        """Операции смены лидера, которые идут сейчас или закончились недавно и ещё не
+        объяснили ни одной смены лидера, новые первыми."""
+        with self._db() as db:
+            rows = db.execute(
+                f'SELECT * FROM operations WHERE cluster=? AND kind IN ({",".join("?" * len(kinds))}) '
+                "AND (status IN ('pending','running') OR updated_at>=?) "
+                "AND id NOT IN (SELECT op_id FROM events WHERE kind='leader_change' AND op_id IS NOT NULL) "
+                'ORDER BY id DESC',
+                (cluster, *kinds, since)).fetchall()
+        return [self._op(r) for r in rows]
 
     def notify_due(self, now, limit=20):
         with self._db() as db:

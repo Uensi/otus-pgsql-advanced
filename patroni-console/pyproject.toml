@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patroni-console"
+dynamic = ["version"]
+description = "Мониторинг и управление кластерами PostgreSQL на Patroni 4 + etcd 3"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "Flask>=3.1,<4",
+  "requests>=2.32.4,<3",
+  "PyYAML>=6.0.2,<7",
+  "gunicorn>=23,<24",
+]
+
+[project.scripts]
+patroni-console-hashpw = "patroni_console.hashpw:main"
+patroni-console-check = "patroni_console.check:main"
+
+[tool.setuptools]
+packages = ["patroni_console"]
+
+[tool.setuptools.package-data]
+patroni_console = ["static/*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "patroni_console.__version__"}
