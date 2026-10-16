@@ -23,8 +23,10 @@ import threading
 from . import ops as ops_mod
 from . import status as status_mod
 from .etcd import EtcdClient
+from .notify import Notifier
 from .patroni import PatroniClient, PatroniError
 from .store import ClusterBusy, IdempotencyConflict, Store
+from .watcher import Watcher
 
 log = logging.getLogger('patroni_console')
 ROLE_LEVEL = {'viewer': 0, 'operator': 1, 'admin': 2}
@@ -43,7 +45,7 @@ def require(role):
 class JsonFormatter(logging.Formatter):
     def format(self, rec):
         d = {'ts': round(rec.created, 3), 'level': rec.levelname, 'logger': rec.name, 'msg': rec.getMessage()}
-        for k in ('request_id', 'user', 'method', 'path', 'status', 'ms', 'cluster'):
+        for k in ('request_id', 'user', 'method', 'path', 'status', 'ms', 'cluster', 'channel', 'attempt', 'error', 'gave_up'):
             if hasattr(rec, k):
                 d[k] = getattr(rec, k)
         if rec.exc_info:
@@ -83,9 +85,11 @@ def _validate_params(kind, raw, cluster):
 
 
 def create_app(config, store=None, patroni_session_factory=None, etcd_session_factory=None,
-               ops_timings=None, ops_sync=False):
+               ops_timings=None, ops_sync=False, notify_session_factory=None):
     """Фабрика приложения. Импорт модуля ничего не запускает и в сеть не ходит.
-    ops_sync=True выполняет операции в потоке запроса (для тестов)."""
+    ops_sync=True выполняет операции в потоке запроса (для тестов).
+    Наблюдатель и отправщик уведомлений создаются, но не запускаются:
+    это делает start_background() (см. wsgi.py)."""
     app = Flask(__name__, static_folder=None)
     app.config['PC'] = config
     store = store or Store(config.db_path)
@@ -100,6 +104,11 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
     def etcd_client(cluster):
         s = etcd_session_factory() if etcd_session_factory else None
         return EtcdClient(cluster.etcd, timeout=config.timeout, session=s)
+
+    notifier = Notifier(store, config.channels, session_factory=notify_session_factory)
+    watcher = Watcher(store, config, patroni_client, etcd_client, pool=pool, on_event=notifier.wake)
+    app.extensions['pc_watcher'] = watcher
+    app.extensions['pc_notifier'] = notifier
 
     def current_role(username):
         u = config.users.get(username)
@@ -389,6 +398,38 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
             return err('not_found', 'операция не найдена', 404)
         return jsonify({'ok': True, 'data': op})
 
+    # ---------- события ----------
+    @app.get('/api/clusters/<cluster>/events')
+    @require('viewer')
+    def events_list(cluster):
+        if not get_cluster(cluster):
+            return err('not_found', 'кластер не найден', 404)
+        try:
+            limit = min(max(int(request.args.get('limit', 100)), 1), 500)
+        except ValueError:
+            return err('bad_request', 'limit должен быть числом')
+        open_ = sorted(store.conditions_get(cluster).values(), key=lambda c: c['opened_at'])
+        return jsonify({'ok': True, 'data': {
+            'events': store.events_list(cluster, limit),
+            'open': open_,
+            'watcher': {**(watcher.state.get(cluster) or {}), 'interval': config.watch.interval,
+                        'running': watcher._thread is not None},
+            'channels': [{'name': c.name, 'type': c.type, 'min_level': c.min_level} for c in config.channels],
+        }})
+
+    @app.post('/api/clusters/<cluster>/notify-test')
+    @require('admin')
+    def notify_test(cluster):
+        if not get_cluster(cluster):
+            return err('not_found', 'кластер не найден', 404)
+        if not config.channels:
+            return err('no_channels', 'каналы уведомлений не настроены (секция notify в конфиге)', 412)
+        ev = store.event_add(cluster, 'info', 'info', 'test', f'тестовое уведомление от {g.user["username"]}',
+                             channels=[c.name for c in config.channels])
+        store.audit('notify_test', 'ok', g.user['username'], remote(), cluster, {}, None, g.request_id)
+        notifier.wake()
+        return jsonify({'ok': True, 'data': ev}), 202
+
     @app.get('/api/audit')
     @require('admin')
     def audit_list():
@@ -407,3 +448,9 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
         return err('internal', 'внутренняя ошибка, см. журнал по request_id', 500, request_id=g.get('request_id'))
 
     return app
+
+
+def start_background(app):
+    """Запускает наблюдатель и отправщик уведомлений. Вызывать один раз на процесс."""
+    app.extensions['pc_notifier'].start()
+    app.extensions['pc_watcher'].start()

@@ -30,3 +30,20 @@ users:
   - { name: admin,  role: admin,    password_hash: "scrypt:..." }
   - { name: oper,   role: operator, password_hash: "scrypt:..." }
   - { name: viewer, role: viewer,   password_hash: "scrypt:..." }
+
+watch:                                    # наблюдатель событий
+  interval: 10                            # секунд между проверками
+  confirm: 2                              # проблема должна продержаться N проверок подряд
+  keep_days: 90                           # сколько хранить события
+
+notify:                                   # каналы уведомлений (можно не задавать)
+  - type: webhook
+    name: ops-hook
+    url: https://alerts.example.local/patroni   # или ${ALERT_WEBHOOK_URL}
+    token: ${ALERT_WEBHOOK_TOKEN}         # необязательно: Authorization: Bearer
+    min_level: warning                    # info | warning | critical
+  - type: telegram
+    name: dba-telegram
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_id: "-1001234567890"
+    min_level: critical

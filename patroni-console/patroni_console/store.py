@@ -55,6 +55,56 @@ CREATE UNIQUE INDEX IF NOT EXISTS operations_one_active ON operations(cluster) W
 CREATE UNIQUE INDEX IF NOT EXISTS operations_idem ON operations(cluster, idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS operations_cluster ON operations(cluster, id);
 
+-- журнал событий кластера (наблюдатель)
+CREATE TABLE IF NOT EXISTS events (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    cluster TEXT NOT NULL,
+    ts      REAL NOT NULL,
+    kind    TEXT NOT NULL CHECK (kind IN ('opened', 'resolved', 'leader_change', 'info')),
+    level   TEXT NOT NULL CHECK (level IN ('info', 'warning', 'critical')),
+    code    TEXT NOT NULL,
+    node    TEXT,
+    text    TEXT NOT NULL,
+    op_id   INTEGER
+);
+CREATE INDEX IF NOT EXISTS events_cluster ON events(cluster, id);
+CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
+
+-- открытые проблемы: переживают перезапуск, чтобы не слать повторные уведомления
+CREATE TABLE IF NOT EXISTS conditions (
+    cluster   TEXT NOT NULL,
+    key       TEXT NOT NULL,
+    level     TEXT NOT NULL,
+    code      TEXT NOT NULL,
+    node      TEXT,
+    text      TEXT NOT NULL,
+    opened_at REAL NOT NULL,
+    event_id  INTEGER NOT NULL,
+    PRIMARY KEY (cluster, key)
+);
+
+CREATE TABLE IF NOT EXISTS watch_state (
+    cluster    TEXT PRIMARY KEY,
+    leader     TEXT,
+    timeline   INTEGER,
+    scheduled  INTEGER NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL
+);
+
+-- outbox уведомлений: пишется в одной транзакции с событием
+CREATE TABLE IF NOT EXISTS notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    channel    TEXT NOT NULL,
+    status     TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'failed')),
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    next_at    REAL NOT NULL,
+    last_error TEXT,
+    sent_at    REAL,
+    UNIQUE (event_id, channel)
+);
+CREATE INDEX IF NOT EXISTS notifications_due ON notifications(status, next_at);
+
 CREATE TABLE IF NOT EXISTS login_failures (
     key  TEXT NOT NULL,
     ts   REAL NOT NULL
@@ -238,3 +288,112 @@ class Store:
             d['params'] = json.loads(d['params'] or '{}')
             out.append(d)
         return out
+
+    # ---- события и уведомления ----
+    @staticmethod
+    def _insert_event(db, cluster, kind, level, code, node, text, op_id, channels, now):
+        cur = db.execute('INSERT INTO events (cluster, ts, kind, level, code, node, text, op_id) VALUES (?,?,?,?,?,?,?,?)',
+                         (cluster, now, kind, level, code, node, text, op_id))
+        eid = cur.lastrowid
+        db.executemany('INSERT INTO notifications (event_id, channel, status, next_at) VALUES (?,?,?,?)',
+                       [(eid, ch, 'pending', now) for ch in channels])
+        return eid
+
+    def event_add(self, cluster, kind, level, code, text, node=None, op_id=None, channels=()):
+        now = time.time()
+        with self._db() as db:
+            eid = self._insert_event(db, cluster, kind, level, code, node, text, op_id, channels, now)
+            return dict(db.execute('SELECT * FROM events WHERE id=?', (eid,)).fetchone())
+
+    def conditions_get(self, cluster):
+        with self._db() as db:
+            rows = db.execute('SELECT * FROM conditions WHERE cluster=?', (cluster,)).fetchall()
+        return {r['key']: dict(r) for r in rows}
+
+    def condition_open(self, cluster, key, cond, channels=()):
+        """Событие, строка условия и уведомления — одной транзакцией."""
+        now = time.time()
+        with self._db() as db:
+            if db.execute('SELECT 1 FROM conditions WHERE cluster=? AND key=?', (cluster, key)).fetchone():
+                return None
+            eid = self._insert_event(db, cluster, 'opened', cond['level'], cond['code'], cond.get('node'),
+                                     cond['text'], None, channels, now)
+            db.execute('INSERT INTO conditions VALUES (?,?,?,?,?,?,?,?)',
+                       (cluster, key, cond['level'], cond['code'], cond.get('node'), cond['text'], now, eid))
+            return eid
+
+    def condition_close(self, cluster, key, text, channels=()):
+        now = time.time()
+        with self._db() as db:
+            row = db.execute('SELECT * FROM conditions WHERE cluster=? AND key=?', (cluster, key)).fetchone()
+            if not row:
+                return None
+            eid = self._insert_event(db, cluster, 'resolved', row['level'], row['code'], row['node'],
+                                     text, None, channels, now)
+            db.execute('DELETE FROM conditions WHERE cluster=? AND key=?', (cluster, key))
+            return eid
+
+    def watch_state_get(self, cluster):
+        with self._db() as db:
+            row = db.execute('SELECT * FROM watch_state WHERE cluster=?', (cluster,)).fetchone()
+        return dict(row) if row else None
+
+    def watch_state_set(self, cluster, leader, timeline, scheduled):
+        with self._db() as db:
+            db.execute('INSERT INTO watch_state (cluster, leader, timeline, scheduled, updated_at) VALUES (?,?,?,?,?) '
+                       'ON CONFLICT(cluster) DO UPDATE SET leader=excluded.leader, timeline=excluded.timeline, '
+                       'scheduled=excluded.scheduled, updated_at=excluded.updated_at',
+                       (cluster, leader, timeline, int(bool(scheduled)), time.time()))
+
+    def events_list(self, cluster, limit=100):
+        with self._db() as db:
+            rows = db.execute('SELECT * FROM events WHERE cluster=? ORDER BY id DESC LIMIT ?', (cluster, limit)).fetchall()
+            out = [dict(r) for r in rows]
+            if out:
+                ids = [e['id'] for e in out]
+                q = f'SELECT event_id, channel, status, attempts, last_error FROM notifications WHERE event_id IN ({",".join("?" * len(ids))})'
+                by = {}
+                for n in db.execute(q, ids).fetchall():
+                    by.setdefault(n['event_id'], []).append(dict(n))
+                for e in out:
+                    e['notifications'] = [{k: v for k, v in n.items() if k != 'event_id'} for n in by.get(e['id'], [])]
+        return out
+
+    def events_trim(self, keep_days):
+        cutoff = time.time() - keep_days * 86400
+        with self._db() as db:
+            db.execute('DELETE FROM notifications WHERE event_id IN (SELECT id FROM events WHERE ts<?)', (cutoff,))
+            db.execute('DELETE FROM events WHERE ts<? AND id NOT IN (SELECT event_id FROM conditions)', (cutoff,))
+
+    def op_recent(self, cluster, kinds, since):
+        """Операция смены лидера, которая идёт сейчас или закончилась недавно."""
+        with self._db() as db:
+            row = db.execute(
+                f'SELECT * FROM operations WHERE cluster=? AND kind IN ({",".join("?" * len(kinds))}) '
+                "AND (status IN ('pending','running') OR updated_at>=?) ORDER BY id DESC LIMIT 1",
+                (cluster, *kinds, since)).fetchone()
+        return self._op(row) if row else None
+
+    def notify_due(self, now, limit=20):
+        with self._db() as db:
+            rows = db.execute(
+                'SELECT n.id, n.channel, n.attempts, e.* FROM notifications n JOIN events e ON e.id=n.event_id '
+                "WHERE n.status='pending' AND n.next_at<=? ORDER BY n.id LIMIT ?", (now, limit)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            out.append({'id': r[0], 'channel': d['channel'], 'attempts': d['attempts'],
+                        'event': {k: d[k] for k in ('cluster', 'ts', 'kind', 'level', 'code', 'node', 'text', 'op_id')}
+                        | {'id': r[3]}})
+        return out
+
+    def notify_sent(self, nid):
+        with self._db() as db:
+            db.execute("UPDATE notifications SET status='sent', attempts=attempts+1, sent_at=?, last_error=NULL WHERE id=?",
+                       (time.time(), nid))
+
+    def notify_failed(self, nid, error, next_at=None):
+        """next_at=None — попытки исчерпаны."""
+        with self._db() as db:
+            db.execute('UPDATE notifications SET attempts=attempts+1, last_error=?, status=?, next_at=COALESCE(?, next_at) '
+                       'WHERE id=?', (error[:500], 'failed' if next_at is None else 'pending', next_at, nid))

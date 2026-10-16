@@ -97,6 +97,8 @@
     if (!$('ops-section').hidden) {
       api('/api/clusters/' + encodeURIComponent(name) + '/operations').then(renderOps).catch(() => {});
     }
+    api('/api/clusters/' + encodeURIComponent(name) + '/events?limit=50').then((d) => { if (name === cluster) renderEvents(d); })
+      .catch((e) => $('events').replaceChildren(el('li', { class: 'state-bad' }, 'События: ' + e.message)));
     api('/api/clusters/' + encodeURIComponent(name) + '/history').then(renderHistory)
       .catch((e) => $('history').replaceChildren(el('li', { class: 'state-bad' }, e.message)));
   }
@@ -175,6 +177,43 @@
       el('strong', null, 'Таймлайн ' + r.timeline + ' → ' + (r.timeline + 1)),
       ' ' + (r.new_leader ? 'новый лидер ' + r.new_leader : ''),
       el('div', { class: 'muted' }, (r.timestamp || '') + ' ' + (r.reason || '')))));
+  }
+
+  // ---------- события ----------
+  const NOTIFY_RU = { pending: 'ждёт отправки', sent: 'отправлено', failed: 'не отправлено' };
+  function renderEvents(d) {
+    const w = d.watcher || {};
+    let line;
+    if (!w.running) line = 'Наблюдатель не запущен: события не записываются.';
+    else if (w.error) line = 'Наблюдатель: ошибка последней проверки: ' + w.error;
+    else if (w.last_run) line = 'Наблюдатель проверяет кластер каждые ' + w.interval + ' с, последняя проверка в ' +
+      new Date(w.last_run * 1000).toLocaleTimeString() + '.';
+    else line = 'Наблюдатель запускается.';
+    line += d.channels.length ? ' Уведомления: ' + d.channels.map((c) => c.name + ' (от ' + c.min_level + ')').join(', ') + '.'
+      : ' Каналы уведомлений не настроены.';
+    $('watcher-line').textContent = line;
+    $('notify-test').hidden = role !== 'admin' || !d.channels.length;
+    const open = new Set(d.open.map((c) => c.event_id));
+    if (!d.events.length) { $('events').replaceChildren(el('li', { class: 'muted' }, 'Событий пока не было')); return; }
+    $('events').replaceChildren(...d.events.map((e) => {
+      const cls = e.kind === 'resolved' ? 'resolved' : e.level;
+      const text = el('div', null, (e.node && e.kind !== 'leader_change' && !e.text.includes(e.node + ':') ? e.node + ': ' : '') + e.text);
+      if (open.has(e.id)) text.append(' ', el('span', { class: 'open-now' }, 'продолжается'));
+      if (e.notifications && e.notifications.length) {
+        text.append(el('span', { class: 'sent' }, e.notifications.map((n) =>
+          n.channel + ': ' + (NOTIFY_RU[n.status] || n.status) + (n.status === 'pending' && n.attempts ? ', попыток ' + n.attempts : '')).join(' · ')));
+      }
+      return el('li', { class: cls }, el('span', { class: 'when' }, new Date(e.ts * 1000).toLocaleString()), text);
+    }));
+  }
+
+  async function notifyTest() {
+    $('notify-test-result').textContent = '';
+    try {
+      await api('/api/clusters/' + encodeURIComponent(cluster) + '/notify-test', { method: 'POST', body: {} });
+      $('notify-test-result').textContent = 'Отправлено в очередь, статус появится в ленте.';
+      refresh();
+    } catch (e) { $('notify-test-result').textContent = e.message; }
   }
 
   // ---------- операции ----------
@@ -306,6 +345,7 @@
     for (const id of ['op-confirm', 'op-ack', 'op-force']) $(id).addEventListener('input', updateRunButton);
     $('op-cancel').addEventListener('click', () => $('op-dialog').close());
     $('op-run').addEventListener('click', submitOp);
+    $('notify-test').addEventListener('click', notifyTest);
     $('login-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);

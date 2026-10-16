@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 import yaml
 
 ROLES = ('viewer', 'operator', 'admin')
+LEVELS = ('info', 'warning', 'critical')
+CHANNEL_TYPES = ('webhook', 'telegram')
 _ENV_RE = re.compile(r'^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$')
 _NAME_RE = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')
 
@@ -85,6 +87,24 @@ class User:
 
 
 @dataclass
+class WatchConfig:
+    interval: float = 10.0     # секунд между проверками кластера
+    confirm: int = 2           # сколько проверок подряд условие должно держаться, чтобы открыться/закрыться
+    keep_days: int = 90        # сколько хранить события
+
+
+@dataclass
+class Channel:
+    name: str
+    type: str                  # webhook | telegram
+    min_level: str = 'warning'
+    url: str = None            # webhook
+    token: str = None          # webhook: Bearer-токен; telegram: токен бота
+    chat_id: str = None        # telegram
+    timeout: float = 10.0
+
+
+@dataclass
 class Config:
     clusters: dict
     users: dict
@@ -92,6 +112,56 @@ class Config:
     db_path: str = 'patroni_console.db'
     timeout: float = 5.0
     cookie_secure: bool = True
+    watch: WatchConfig = field(default_factory=WatchConfig)
+    channels: list = field(default_factory=list)
+
+
+def _env_or_plain(value, where):
+    """Значение может быть ссылкой ${VAR} (тогда берётся из окружения) или обычной строкой."""
+    if isinstance(value, str) and _ENV_RE.match(value.strip()):
+        return _secret(value, where)
+    return value
+
+
+def _parse_watch(raw):
+    w = raw or {}
+    cfg = WatchConfig(interval=float(w.get('interval', 10)), confirm=int(w.get('confirm', 2)),
+                      keep_days=int(w.get('keep_days', 90)))
+    if cfg.interval < 2:
+        raise ConfigError('watch.interval: не меньше 2 секунд')
+    if cfg.confirm < 1:
+        raise ConfigError('watch.confirm: не меньше 1')
+    return cfg
+
+
+def _parse_channels(raw):
+    channels, names = [], set()
+    for i, c in enumerate(raw or []):
+        where = f'notify[{i}]'
+        typ = c.get('type')
+        if typ not in CHANNEL_TYPES:
+            raise ConfigError(f'{where}: type должен быть одним из {CHANNEL_TYPES}')
+        name = c.get('name') or f'{typ}-{i}'
+        if not _NAME_RE.match(name) or name in names:
+            raise ConfigError(f'{where}: недопустимое или повторяющееся имя канала {name!r}')
+        names.add(name)
+        level = c.get('min_level', 'warning')
+        if level not in LEVELS:
+            raise ConfigError(f'{where}: min_level должен быть одним из {LEVELS}')
+        ch = Channel(name=name, type=typ, min_level=level, timeout=float(c.get('timeout', 10)))
+        if typ == 'webhook':
+            ch.url = _env_or_plain(c.get('url'), f'{where}.url')
+            if not ch.url or not str(ch.url).startswith(('https://', 'http://')):
+                raise ConfigError(f'{where}: нужен url http(s)')
+            ch.token = _secret(c.get('token'), f'{where}.token')
+        else:
+            ch.token = _secret(c.get('bot_token'), f'{where}.bot_token')
+            ch.chat_id = str(c.get('chat_id') or '')
+            if not ch.token or not ch.chat_id:
+                raise ConfigError(f'{where}: для telegram нужны bot_token (через ${{VAR}}) и chat_id')
+            ch.url = str(c.get('api_url', 'https://api.telegram.org')).rstrip('/')
+        channels.append(ch)
+    return channels
 
 
 def _node_url(n, scheme, where):
@@ -178,6 +248,8 @@ def parse(raw):
         db_path=web.get('db_path', 'patroni_console.db'),
         timeout=float(web.get('timeout', 5)),
         cookie_secure=bool(web.get('cookie_secure', True)),
+        watch=_parse_watch(raw.get('watch')),
+        channels=_parse_channels(raw.get('notify')),
     )
 
 

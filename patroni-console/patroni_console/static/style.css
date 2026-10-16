@@ -80,6 +80,18 @@ tr:last-child td { border-bottom: 0; }
 .history li { padding: 8px 14px; border-bottom: 1px solid var(--line); }
 .history li:last-child { border-bottom: 0; }
 
+/* События: цвет полосы — уровень, зелёная — проблема устранена. */
+.events { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); max-height: 360px; overflow-y: auto; }
+.events li { display: grid; grid-template-columns: 9.5em 1fr; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); border-left: 4px solid var(--line); }
+.events li:last-child { border-bottom: 0; }
+.events li.critical { border-left-color: var(--crit); }
+.events li.warning { border-left-color: var(--warn); }
+.events li.resolved { border-left-color: var(--ok); }
+.events .when { color: var(--muted); font-size: 13px; }
+.events .sent { display: block; color: var(--muted); font-size: 12px; }
+.events .open-now { color: var(--crit); font-weight: 600; }
+.events-tools { margin: 8px 0 0; }
+
 /* Операции */
 .ops-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .ops-bar button, .dialog-actions button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--accent); cursor: pointer; font-weight: 600; }
@@ -130,4 +142,5 @@ dialog h2 { margin: 0 0 4px; }
   .cols { grid-template-columns: 1fr; }
   .replica { grid-template-columns: 1fr minmax(80px, auto); }
   .replica .track { grid-column: 1 / -1; grid-row: 2; }
+  .events li { grid-template-columns: 1fr; gap: 2px; }
 }
