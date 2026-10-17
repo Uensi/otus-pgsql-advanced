@@ -1,0 +1,26 @@
+# systemd-юнит. Установка:
+#   sudo useradd --system --home /opt/patroni-console console
+#   sudo cp -r . /opt/patroni-console && cd /opt/patroni-console
+#   sudo python3 -m venv .venv && sudo .venv/bin/pip install -r requirements.txt -r requirements-prod.txt
+#   sudo chown -R console: /opt/patroni-console && sudo chmod 600 config.yaml
+#   sudo cp deploy/patroni-console.service /etc/systemd/system/ && sudo systemctl enable --now patroni-console
+[Unit]
+Description=Patroni Console (PostgreSQL/Patroni management)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=console
+WorkingDirectory=/opt/patroni-console
+Environment=PATRONI_WEB_CONFIG=/opt/patroni-console/config.yaml
+ExecStart=/opt/patroni-console/.venv/bin/gunicorn -c deploy/gunicorn.conf.py app:app
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/patroni-console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Отчёт PostgreSQL — {{ d.cluster }} — {{ d.period[0] }}–{{ d.period[1] }}</title>
+<style>
+  :root{ --text:#1b2430; --dim:#455060; --muted:#65707f; --line:#d5dbe3; --good:#26744a; --warn:#945c00; --bad:#b3261e; --accent:#2c6290; }
+  *{box-sizing:border-box}
+  body{margin:0; background:#eef0f3; color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  .page{max-width:900px; margin:24px auto; background:#fff; border:1px solid var(--line); padding:40px 48px}
+  header{display:flex; justify-content:space-between; align-items:flex-end; gap:20px; border-bottom:2px solid var(--text); padding-bottom:14px; margin-bottom:24px}
+  h1{font-size:1.6rem; margin:0; line-height:1.2}
+  .sub{color:var(--muted); font-size:.9em}
+  h2{font-size:1.1rem; margin:28px 0 10px; padding-bottom:4px; border-bottom:1px solid var(--line)}
+  .verdict{border-left:6px solid var(--muted); padding:12px 16px; background:#f6f7f9; margin-bottom:8px}
+  .verdict.ok{border-color:var(--good)} .verdict.warn{border-color:var(--warn)} .verdict.bad{border-color:var(--bad)}
+  .verdict b{font-size:1.15rem}
+  .ok-t{color:var(--good)} .warn-t{color:var(--warn)} .bad-t{color:var(--bad)}
+  ul{margin:6px 0 0 20px; padding:0}
+  table{width:100%; border-collapse:collapse; font-size:.92em}
+  th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{color:var(--dim); font-weight:600; font-size:.88em}
+  td.n, th.n{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .q{font-family:ui-monospace,Consolas,monospace; font-size:.82em; max-width:520px; overflow-wrap:anywhere}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px}
+  .tile{border:1px solid var(--line); padding:10px 12px}
+  .tile .k{color:var(--muted); font-size:.82em} .tile .v{font-size:1.4rem; font-weight:650; font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .actions{max-width:900px; margin:16px auto 0; display:flex; gap:8px; justify-content:flex-end}
+  .actions button,.actions a{font:inherit; padding:6px 14px; border:1px solid var(--line); background:#fff; color:var(--text); cursor:pointer; text-decoration:none; border-radius:4px}
+  .actions .primary{background:var(--accent); color:#fff; border-color:var(--accent)}
+  footer{margin-top:32px; color:var(--muted); font-size:.82em; border-top:1px solid var(--line); padding-top:10px}
+  @media print{ body{background:#fff} .page{border:none; margin:0; padding:0; max-width:none} .actions{display:none} h2{break-after:avoid} table,.verdict{break-inside:avoid} }
+  @media (max-width:640px){ .page{padding:20px 16px; margin:0} header{flex-direction:column; align-items:flex-start} }
+</style>
+</head>
+<body>
+<div class="actions"><a href="/#reports">← В консоль</a><button class="primary" onclick="window.print()">Печать / PDF</button></div>
+<div class="page">
+  <header>
+    <div><h1>Отчёт о состоянии PostgreSQL</h1><div class="sub">Кластер {{ d.cluster }} · период {{ d.period[0] }} — {{ d.period[1] }}</div></div>
+    <div class="sub">сформирован {{ d.generated }}</div>
+  </header>
+
+  {% set r = d.risk or {} %}
+  {% set lv = r.level or 'unknown' %}
+  <div class="verdict {{ lv }}">
+    <b>{% if lv == 'ok' %}Рисков потери данных и простоя не обнаружено{% elif lv == 'warn' %}Есть риски, требующие внимания{% elif lv == 'bad' %}Есть критические риски{% else %}Нет данных о рисках{% endif %}</b>
+    <div class="sub">Лидер: {{ d.leader or 'не определён' }} · узлов: {{ (d.members or [])|length }}</div>
+    {% set ritems = r.get('items') or [] %}{% if ritems %}<ul>{% for i in ritems %}<li class="{{ i.level }}-t">{{ i.text }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+
+  {% set b = r.backups or {} %}
+  <h2>Резервное копирование</h2>
+  <div class="grid">
+    <div class="tile"><div class="k">Последний бэкап</div><div class="v">{% if b.last_backup_age_h is not none %}{{ b.last_backup_age_h }} ч назад{% else %}—{% endif %}</div></div>
+    <div class="tile"><div class="k">Бэкапов в хранилище</div><div class="v">{{ b.backups_total or 0 }}</div></div>
+    <div class="tile"><div class="k">Архивация WAL</div><div class="v">{% set st = (b.archiver or {}).stat or {} %}{% if (b.archiver or {}).mode in (none, 'off') %}<span class="warn-t">выкл.</span>{% elif st.failed_count %}{{ st.failed_count }} ошибок{% else %}<span class="ok-t">в норме</span>{% endif %}</div></div>
+    <div class="tile"><div class="k">Проверка восстановления</div><div class="v">{% if b.last_restore_ok %}<span class="ok-t">{{ b.last_restore_ok.time[:10] }}</span>{% else %}<span class="warn-t">не было</span>{% endif %}</div></div>
+  </div>
+
+  <h2>Алерты за период</h2>
+  {% if d.alerts %}
+  <table><tr><th>Правило</th><th>Важность</th><th class="n">Срабатываний</th></tr>
+  {% for a in d.alerts %}<tr><td>{{ a.rule }}</td><td>{{ a.severity }}</td><td class="n">{{ a.count }}</td></tr>{% endfor %}</table>
+  {% else %}<p class="muted">Алерты не срабатывали.</p>{% endif %}
+
+  <h2>Рост баз данных</h2>
+  {% if d.growth %}
+  <table><tr><th>База</th><th class="n">Размер</th><th class="n">Рост за период</th><th class="n">В сутки</th><th class="n">Через 30 дней</th></tr>
+  {% for g in d.growth %}<tr><td>{{ g.name }}</td><td class="n">{{ fmt(g.size) }}</td><td class="n">{{ fmt(g.delta) }}</td><td class="n">{{ fmt(g.per_day) }}</td><td class="n">{{ fmt(g.in_30d) }}</td></tr>{% endfor %}</table>
+  {% else %}<p class="muted">История размеров копится (снимок раз в час) — данные появятся через несколько часов работы консоли.</p>{% endif %}
+
+  <h2>Диски</h2>
+  {% if d.disks %}
+  <table><tr><th>Хост</th><th>Каталог</th><th class="n">Занято</th><th class="n">Свободно</th><th class="n">Заполнится через</th></tr>
+  {% for k in d.disks %}<tr><td>{{ k.host }}</td><td>{{ k.path }}</td><td class="n">{{ k.used_pct }}%</td><td class="n">{{ fmt(k.free) }}</td>
+    <td class="n {% if k.days is not none and k.days < 14 %}bad-t{% elif k.days is not none and k.days < 45 %}warn-t{% endif %}">{% if k.days is not none %}{{ k.days }} дн.{% else %}рост не наблюдается{% endif %}</td></tr>{% endfor %}</table>
+  {% else %}<p class="muted">Нет данных от агентов.</p>{% endif %}
+
+  <h2>Нагрузка: тяжёлые запросы</h2>
+  {% if d.statements %}
+  <table><tr><th>Запрос</th><th class="n">Вызовов</th><th class="n">Среднее, мс</th><th class="n">Доля времени</th></tr>
+  {% for q in d.statements.top[:10] %}<tr><td class="q">{{ q.query[:300] }}</td><td class="n">{{ q.calls }}</td><td class="n">{{ q.mean_ms }}</td><td class="n">{{ q.pct }}%</td></tr>{% endfor %}</table>
+  {% if d.statements.regressions %}<p><b>Регрессии</b> (среднее время выросло в 2+ раза):</p>
+  <table><tr><th>Запрос</th><th class="n">Было, мс</th><th class="n">Стало, мс</th></tr>
+  {% for q in d.statements.regressions[:5] %}<tr><td class="q">{{ q.query[:300] }}</td><td class="n">{{ q.prev_mean_ms }}</td><td class="n bad-t">{{ q.mean_ms }}</td></tr>{% endfor %}</table>{% endif %}
+  {% else %}<p class="muted">Нет снимков pg_stat_statements за период (нужно расширение pg_stat_statements).</p>{% endif %}
+
+  <h2>Безопасность и версии</h2>
+  {% if d.security %}<p>Оценка безопасности: <b>{{ d.security.score }}/100</b> · критичных находок {{ d.security.bad }}, предупреждений {{ d.security.warn }}.</p>
+  {% if d.security.top %}<ul>{% for t in d.security.top %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}{% endif %}
+  {% if d.versions %}
+  <table><tr><th>Узел</th><th>Версия</th><th>Актуальная</th><th>Поддержка до</th></tr>
+  {% for v in d.versions %}<tr><td>{{ v.node }}</td><td>{{ v.version }}</td><td class="{% if v.behind %}warn-t{% endif %}">{{ v.latest or '—' }}</td>
+    <td class="{% if v.eol_passed %}bad-t{% elif v.eol_soon %}warn-t{% endif %}">{{ v.eol or '—' }}</td></tr>{% endfor %}</table>{% endif %}
+
+  <footer>Patroni Console · отчёт сформирован автоматически по данным мониторинга. Цифры роста и прогнозы — линейная оценка по накопленной истории.</footer>
+</div>
+</body>
+</html>

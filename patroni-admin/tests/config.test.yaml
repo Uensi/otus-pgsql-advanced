@@ -1,0 +1,19 @@
+# Конфиг для модульных тестов: узлы на 127.0.0.1 с закрытыми портами — подключения
+# сразу отклоняются, живые кластеры не нужны. Пароли — только тестовые.
+web: {host: 127.0.0.1, port: 5000}
+postgres: {user: postgres, password: "test-pg", database: postgres, port: 1}
+agents: {key: "test-agent-key"}
+clusters:
+  - name: test-db-cluster
+    nodes:
+      - {name: patroni-cluster1, host: 127.0.0.1, port: 1}
+      - {name: patroni-cluster2, host: 127.0.0.1, port: 2}
+      - {name: patroni-cluster3, host: 127.0.0.1, port: 3}
+  - name: prod-cluster
+    nodes:
+      - {name: prod-node1, host: 127.0.0.1, port: 4}
+users:
+  - {name: admin, password: "test-pass", role: admin}
+  - {name: dba, password: "test-pass", role: dba}
+  - {name: viewer, password: "test-pass", role: viewer}
+patroni: {config_path: /etc/patroni/patroni.yml}
