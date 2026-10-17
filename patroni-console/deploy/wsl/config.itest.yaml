@@ -1,0 +1,30 @@
+# Patroni Console -> тестовый кластер itest в WSL (3x etcd 3.6 + 3x Patroni 4 / PostgreSQL 16).
+# Секреты только ссылками ${VAR} на /etc/patroni-console/env.
+# console-itest.sh подставляет хеш пароля admin вместо scrypt:REPLACE_ME.
+web:
+  secret_key: ${PATRONI_CONSOLE_SECRET}
+  db_path: /var/lib/patroni-console/console.db
+  timeout: 5
+  cookie_secure: true
+
+clusters:
+  - name: itest
+    max_lag_bytes: 16777216
+    rest:
+      scheme: http                        # REST API стенда слушает только 127.0.0.1
+      username: patroni
+      password: ${PATRONI_REST_PASSWORD}
+    nodes:
+      - { name: n1, host: 127.0.0.1, port: 8008 }
+      - { name: n2, host: 127.0.0.1, port: 8009 }
+      - { name: n3, host: 127.0.0.1, port: 8010 }
+    etcd:
+      endpoints: [http://127.0.0.1:2379, http://127.0.0.1:2381, http://127.0.0.1:2383]
+
+users:
+  - { name: admin, role: admin, password_hash: "scrypt:REPLACE_ME" }
+
+watch:
+  interval: 10
+  confirm: 2
+  keep_days: 90

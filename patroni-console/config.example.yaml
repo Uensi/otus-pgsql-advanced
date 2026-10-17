@@ -1,0 +1,49 @@
+# Секреты задаются только ссылками на переменные окружения: ${ИМЯ}
+web:
+  secret_key: ${PATRONI_CONSOLE_SECRET}   # ≥32 случайных символов
+  db_path: /var/lib/patroni-console/console.db
+  timeout: 5
+  cookie_secure: true                     # false только для локального теста без HTTPS
+
+clusters:
+  - name: test-db-cluster
+    max_lag_bytes: 16777216               # порог предупреждения о лаге (16 МБ)
+    rest:                                 # REST API Patroni (restapi.authentication)
+      scheme: https
+      username: patroni
+      password: ${PATRONI_REST_PASSWORD}
+      tls:
+        ca_file: /etc/patroni-console/ca.pem
+    nodes:
+      - { name: patroni-cluster1, host: 10.0.0.1, port: 8008 }
+      - { name: patroni-cluster2, host: 10.0.0.2, port: 8008 }
+      - { name: patroni-cluster3, host: 10.0.0.3, port: 8008 }
+    etcd:                                 # только чтение, для диагностики
+      endpoints: [https://10.0.0.1:2379, https://10.0.0.2:2379, https://10.0.0.3:2379]
+      username: console-ro
+      password: ${ETCD_PASSWORD}
+      tls:
+        ca_file: /etc/patroni-console/etcd-ca.pem
+
+users:
+  # хеш: python -m patroni_console.hashpw
+  - { name: admin,  role: admin,    password_hash: "scrypt:..." }
+  - { name: oper,   role: operator, password_hash: "scrypt:..." }
+  - { name: viewer, role: viewer,   password_hash: "scrypt:..." }
+
+watch:                                    # наблюдатель событий
+  interval: 10                            # секунд между проверками
+  confirm: 2                              # проблема должна продержаться N проверок подряд
+  keep_days: 90                           # сколько хранить события
+
+notify:                                   # каналы уведомлений (можно не задавать)
+  - type: webhook
+    name: ops-hook
+    url: https://alerts.example.local/patroni   # или ${ALERT_WEBHOOK_URL}
+    token: ${ALERT_WEBHOOK_TOKEN}         # необязательно: Authorization: Bearer
+    min_level: warning                    # info | warning | critical
+  - type: telegram
+    name: dba-telegram
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_id: "-1001234567890"
+    min_level: critical

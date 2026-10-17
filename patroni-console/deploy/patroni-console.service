@@ -1,0 +1,38 @@
+[Unit]
+Description=Patroni Console (мониторинг и управление Patroni)
+Documentation=file:///opt/patroni-console/docs/INSTALL.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=patroni-console
+Group=patroni-console
+EnvironmentFile=/etc/patroni-console/env
+Environment=PATRONI_CONSOLE_CONFIG=/etc/patroni-console/config.yaml
+WorkingDirectory=/var/lib/patroni-console
+ExecStart=/opt/patroni-console/venv/bin/gunicorn -c /opt/patroni-console/deploy/gunicorn.conf.py patroni_console.wsgi:app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=40
+
+# изоляция: консоль пишет только в свою базу
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/patroni-console
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
