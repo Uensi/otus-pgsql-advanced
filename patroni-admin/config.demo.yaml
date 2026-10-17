@@ -1,0 +1,20 @@
+# Конфигурация демо-режима (PATRONI_CONSOLE_DEMO=1): реальные кластеры не опрашиваются.
+# Вход: demo / demo (роль admin). Не используйте этот файл в продакшене.
+web:
+  host: 127.0.0.1
+  port: 5000
+  secret: "demo-only-secret-change-me"
+postgres:
+  user: postgres
+  password: ""
+agents:
+  key: "demo-agent-key"
+clusters:
+  - name: demo-cluster
+    nodes:
+      - { name: pg-node1, host: 127.0.0.1, port: 18008 }
+      - { name: pg-node2, host: 127.0.0.1, port: 18009 }
+      - { name: pg-node3, host: 127.0.0.1, port: 18010 }
+users:
+  - { name: demo, password: "demo", role: admin }
+  - { name: viewer, password: "viewer", role: viewer }

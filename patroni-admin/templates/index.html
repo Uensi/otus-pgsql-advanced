@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patroni Console — {{ cluster_name }}</title>
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Консоль управления и мониторинга кластеров PostgreSQL/Patroni">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232c6290'/%3E%3Cpath d='M4 11V5h3.2a2 2 0 010 4H4' stroke='white' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<style>
+  body.is-viewer [data-action], body.is-viewer .gate-dba, body.is-viewer .gate-admin { display:none !important; }
+  body.is-dba .gate-admin { display:none !important; }
+</style>
+<script>
+(function(){
+  function paint(msg, file, line){
+    try{
+      var box = document.getElementById('op-log');
+      if(box){ var d = document.createElement('div'); d.className = 'log-line err'; d.textContent = '[JS] '+msg+(file?' @ '+file+':'+line:''); box.insertBefore(d, box.firstChild); }
+    }catch(e){}
+  }
+  window.addEventListener('error', function(ev){ paint(ev.message, ev.filename, ev.lineno); });
+  window.addEventListener('unhandledrejection', function(ev){ var r=ev.reason; paint((r&&r.message)?r.message:String(r),'',''); });
+  try{
+    var saved = localStorage.getItem('patroni_theme');
+    if(saved === 'paper' || saved === 'graphite') document.documentElement.setAttribute('data-theme', saved);
+    else if(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'graphite');
+  }catch(e){}
+  document.addEventListener('DOMContentLoaded', function(){
+    var note = document.getElementById('boot-note');
+    var logEl = document.getElementById('op-log');
+    if(!note) return;
+    var done = false;
+    function hide(){ if(done) return; done = true; note.classList.add('gone'); setTimeout(function(){ note.style.display='none'; }, 600); }
+    if(logEl && 'MutationObserver' in window){
+      var mo = new MutationObserver(function(){ hide(); mo.disconnect(); });
+      mo.observe(logEl, {childList:true});
+    }
+    setTimeout(function(){ if(!done){ note.classList.add('stuck'); note.textContent = 'ядро не стартовало — смотри журнал ниже'; } }, 5000);
+  });
+})();
+</script>
+</head>
+<body>
+<div id="boot-note" class="boot-note">интерфейс инициализируется…</div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-text">
+      <span class="eyebrow">Patroni Console</span>
+      <h1 id="cluster-name">{{ cluster_name }}</h1>
+    </div>
+  </div>
+  <div class="telemetry" id="telemetry" aria-live="polite">
+    <div class="tele" data-hint="Узел, который сейчас принимает запись (primary)"><span class="tele-k">Лидер</span><span class="tele-v" id="t-leader">—</span></div>
+    <div class="tele" data-hint="Количество реплик в кластере"><span class="tele-k">Реплики</span><span class="tele-v" id="t-replicas">—</span></div>
+    <div class="tele" data-hint="Наибольшее отставание реплики от лидера (байты WAL). До 10 МБ — норма, свыше 100 МБ — риск потери данных при failover"><span class="tele-k">Макс. лаг</span><span class="tele-v" id="t-lag">—</span></div>
+  </div>
+  <div class="head-actions">
+    <span id="demo-flag" class="pill pill-info hidden" data-hint="Демо-режим: данные сгенерированы, реальные кластеры не опрашиваются">Демо</span>
+    <a id="alert-ind" class="pill pill-warn hidden" href="#alerts" data-hint="Сработавшие правила алертов — открыть список">Алерты: <span id="alert-count">0</span></a>
+    <span id="user-chip" class="pill pill-ok hidden"><span class="dot"></span><span id="user-name"></span></span>
+    <button id="btn-logout" class="btn hidden">Выход</button>
+    <select id="cluster-switch" class="btn hidden" style="max-width:190px" aria-label="Активный кластер" data-hint="Кластер, который показывают все экраны консоли"></select>
+    <span id="conn-ind" class="conn-ind ok" data-hint="Консоль получает данные от сервера"><i></i><b>Связь</b></span>
+    <span id="pause-status" class="pill pill-ok"><span class="dot"></span>Автофейловер вкл.</span>
+    <button id="btn-pause" class="btn gate-admin" data-hint="Режим обслуживания Patroni: отключает автоматический failover на время ручных работ">Пауза</button>
+    <button id="btn-refresh" class="btn" data-hint="Обновить данные текущего экрана сейчас">Обновить</button>
+    <button id="btn-theme" class="btn icon" aria-label="Сменить тему" data-hint="Светлая / тёмная тема"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zm0 1.5v10a5 5 0 010-10z" fill="currentColor"/></svg></button>
+  </div>
+</header>
+
+<nav class="screenbar" id="screenbar">
+  <div class="screen-track" id="screen-track">
+    <div class="nav-group active" data-group="mon">
+      <button class="nav-group-btn" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="ng-title">Мониторинг</span>
+        <span class="nav-group-label">Кластер</span><i class="caret">▾</i>
+      </button>
+      <div class="group-menu">
+        <button class="chip" data-screen="center">Все кластеры</button>
+        <button class="chip active" data-screen="cluster">Кластер</button>
+        <button class="chip" data-screen="risk">Риски</button>
+        <button class="chip" data-screen="metrics">Метрики</button>
+        <button class="chip" data-screen="reports">Отчёты</button>
+        <button class="chip" data-screen="alerts">Алерты</button>
+      </div>
+    </div>
+
+    <div class="nav-group" data-group="db">
+      <button class="nav-group-btn" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="ng-title">База данных</span>
+        <span class="nav-group-label">Базы данных</span><i class="caret">▾</i>
+      </button>
+      <div class="group-menu">
+        <button class="chip" data-screen="db">Базы данных</button>
+        <button class="chip" data-screen="schema">Схема / ERD</button>
+        <button class="chip" data-screen="analyzer">Анализатор</button>
+        <button class="chip" data-screen="querylab">SQL‑консоль</button>
+        <button class="chip" data-screen="locks">Блокировки</button>
+        <button class="chip" data-screen="ash">Активные сессии</button>
+      </div>
+    </div>
+
+    <div class="nav-group" data-group="opt">
+      <button class="nav-group-btn" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="ng-title">Оптимизация</span>
+        <span class="nav-group-label">Оптимизация</span><i class="caret">▾</i>
+      </button>
+      <div class="group-menu">
+        <button class="chip" data-screen="tune">Параметры</button>
+        <button class="chip" data-screen="perf">Производительность</button>
+      </div>
+    </div>
+
+    <div class="nav-group" data-group="ops">
+      <button class="nav-group-btn" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="ng-title">Эксплуатация</span>
+        <span class="nav-group-label">DBA</span><i class="caret">▾</i>
+      </button>
+      <div class="group-menu">
+        <button class="chip" data-screen="dba">DBA</button>
+        <button class="chip" data-screen="maint">Обслуживание</button>
+        <button class="chip" data-screen="hosts">Хосты</button>
+        <button class="chip" data-screen="backups">Бэкапы</button>
+        <button class="chip" data-screen="slots">Слоты</button>
+        <button class="chip" data-screen="ops">Операции</button>
+        <button class="chip" data-screen="logs">Журналы</button>
+      </div>
+    </div>
+
+    <div class="nav-group" data-group="adm">
+      <button class="nav-group-btn" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="ng-title">Управление</span>
+        <span class="nav-group-label">Ассистент</span><i class="caret">▾</i>
+      </button>
+      <div class="group-menu">
+        <button class="chip" data-screen="ai">Ассистент DBA</button>
+        <button class="chip" data-screen="admin">Админ</button>
+        <button class="chip" data-screen="security">Безопасность</button>
+        <button class="chip" data-screen="upgrade">Обновления</button>
+        <button class="chip gate-admin" data-screen="audit">Аудит</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main id="app">
+
+  <div class="cluster-ribbon" id="cluster-ribbon" aria-label="Статус узлов кластера"></div>
+
+  <section class="screen" data-screen="center">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Все кластеры</h2>
+        <div class="inline-ctrl"><span class="panel-meta">кластеры из config.yaml, обновление раз в 15 с</span></div>
+      </div>
+      <div id="center-grid" class="ops-grid"></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="hosts">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Хосты и инстансы</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadHosts()">Обновить</button></div>
+      </div>
+      <div id="hosts-grid" class="ops-grid"><p class="muted">загрузка…</p></div>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Прогноз заполнения дисков</h2></div>
+      <div id="disk-forecasts" class="table-wrap"><p class="muted">появится после накопления точек истории (2–3 мин)</p></div>
+    </div>
+  </section>
+
+  <section class="screen active" data-screen="cluster">
+    <div id="cluster-health" aria-live="polite"><div class="health"><div class="skeleton"><i></i></div></div></div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Узлы кластера</h2><span class="panel-meta" id="cluster-updated"></span></div>
+      <div class="table-wrap"><table id="nodes-table">
+        <thead><tr><th>Узел</th><th>Адрес Patroni</th><th>Роль</th><th>Состояние</th>
+          <th><abbr data-hint="Timeline — номер «линии времени» WAL. Растёт на 1 при каждом failover/switchover. У всех узлов должен совпадать">TL</abbr></th>
+          <th><abbr data-hint="Received LSN — до какой позиции WAL реплика получила журнал от лидера. У лидера — текущая позиция записи">Получено (LSN)</abbr></th>
+          <th><abbr data-hint="Replayed LSN — до какой позиции WAL реплика применила изменения. Разница с «получено» — очередь применения">Применено (LSN)</abbr></th>
+          <th><abbr data-hint="Лаг — отставание реплики от лидера в байтах WAL. До 10 МБ — норма, 10–100 МБ — внимание, свыше 100 МБ — авария">Лаг</abbr></th>
+          <th><abbr data-hint="Отложенная реплика: изменения применяются с задержкой (recovery_min_apply_delay) — защита от ошибочных DELETE/DROP">Задержка</abbr></th>
+          <th><abbr data-hint="Агент консоли на хосте: нужен для бэкапов, дампов, ОС-метрик и управления службами">Агент</abbr></th><th></th></tr></thead>
+        <tbody id="nodes-body"><tr class="skeleton-row"><td colspan="11"><div class="skeleton"><i></i><i></i><i></i></div></td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2 data-hint="Отставание каждой реплики от лидера во времени, байты WAL">Лаг реплик</h2>
+        <div class="inline-ctrl">
+          <span class="lag-badges" id="lag-badges"></span>
+          <label>период <select id="lag-points"><option value="30">~1,5 мин</option><option value="60" selected>~3 мин</option><option value="120">~6 мин</option><option value="200">~10 мин</option></select></label>
+          <button class="btn sm" onclick="clearChart()">Очистить график</button>
+        </div>
+      </div>
+      <div class="chart-box"><canvas id="lag-chart"></canvas><div class="sync-flag hidden" id="sync-flag">Все реплики догнали лидера: лаг 0</div></div>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2>DCS и синхронная репликация</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadDcsHealth()">Обновить</button></div>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">etcd:</span><input id="dcs-etcd" placeholder="http://10.0.0.1:2379 (через запятую)" style="width:300px">
+        <span class="muted">consul:</span><input id="dcs-consul" placeholder="http://10.0.0.2:8500" style="width:250px">
+        <button class="btn gate-admin" onclick="dcsCfgSave()">сохранить</button>
+        <button class="btn" onclick="dcsDiscover()">Обнаружить</button>
+      </div>
+      <div id="dcs-out" class="dcs-out"><div class="skeleton"><i></i><i></i></div></div>
+      <p class="muted">Адреса DCS хранятся в <code>dcs_config.json</code> (config.yaml не трогается). Статус обновляется раз в 15 секунд.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="metrics">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Метрики</h2>
+        <div class="inline-ctrl">
+          <label>нода <select id="metrics-node" onchange="renderMetrics()"></select></label>
+          <label>период <select id="metrics-points" onchange="renderMetrics()">
+            <option value="60">1 мин</option>
+            <option value="180">3 мин</option>
+            <option value="600" selected>10 мин</option>
+            <option value="1200">20 мин</option>
+          </select></label>
+          <button class="btn" onclick="renderMetrics()">Обновить</button>
+        </div>
+      </div>
+      <div id="metrics-status" class="muted" style="margin:8px 0"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px">
+        <div class="widget"><h4>TPS — все ноды</h4><div class="chart-box"><canvas id="m-tps-all"></canvas></div></div>
+        <div class="widget"><h4>Cache Hit — все ноды</h4><div class="chart-box"><canvas id="m-cache-all"></canvas></div></div>
+        <div class="widget"><h4>Соединения</h4><div class="chart-box"><canvas id="m-conn"></canvas></div></div>
+        <div class="widget"><h4>TPS</h4><div class="chart-box"><canvas id="m-tps"></canvas></div></div>
+        <div class="widget"><h4>Cache Hit %</h4><div class="chart-box"><canvas id="m-cache"></canvas></div></div>
+        <div class="widget"><h4>Tuples / сек</h4><div class="chart-box"><canvas id="m-tuples"></canvas></div></div>
+        <div class="widget"><h4>Блокировки (ждут)</h4><div class="chart-box"><canvas id="m-locks"></canvas></div></div>
+        <div class="widget"><h4>Deadlocks</h4><div class="chart-box"><canvas id="m-deadlocks"></canvas></div></div>
+        <div class="widget"><h4>Long queries (&gt;60с)</h4><div class="chart-box"><canvas id="m-long"></canvas></div></div>
+        <div class="widget"><h4>Temp files</h4><div class="chart-box"><canvas id="m-temp"></canvas></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="db">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Базы данных</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadDbs()">Обновить</button></div>
+      </div>
+      <div id="db-stats" class="metric-grid" style="margin-bottom:16px"></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>База</th><th>Размер</th><th>Соединения</th><th>Cache hit</th><th>Транзакций</th><th>Рост/час</th><th>Кодировка</th></tr></thead>
+        <tbody id="db-overview-body"><tr><td colspan="7" class="empty">загрузка…</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="schema">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>ERD‑диаграмма</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadSchema()">загрузить схему</button><button class="btn" onclick="downloadSchema()">⤓ PNG</button></div>
+      </div>
+      <div class="erd-grid">
+        <div class="erd-canvas" id="erd-diagram"><p class="muted center">нажмите «загрузить схему»</p></div>
+        <aside class="erd-side"><h3>Таблицы</h3><div id="table-list-content"><p class="muted">—</p></div></aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="analyzer">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Анализатор запросов</h2>
+        <div class="inline-ctrl"><button class="btn" id="ai-explain-btn" onclick="aiExplainPlan()" disabled>Объяснить план</button></div>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Служебные таблицы (pg_*, pg_catalog, information_schema) не анализируются.</p>
+      <div class="seg-row" id="an-tabs">
+        <button class="seg active" data-an="slow">Медленные</button>
+        <button class="seg" data-an="current">Текущие</button>
+        <button class="seg" data-an="custom">Свой запрос</button>
+      </div>
+      <div class="an-pane" data-an="slow"><button class="btn" onclick="loadSlow()">загрузить</button><div id="slow-list" class="qlist"></div></div>
+      <div class="an-pane hidden" data-an="current"><button class="btn" onclick="loadCurrent()">обновить</button><div id="current-list" class="qlist"></div></div>
+      <div class="an-pane hidden" data-an="custom"><textarea id="custom-query" rows="5" placeholder="SELECT * FROM users WHERE email = 'x@y'"></textarea><button class="btn primary" onclick="analyzeCustom()">анализировать</button></div>
+      <div id="analysis-panel" class="analysis hidden">
+        <div id="an-classify" style="margin-bottom:14px"></div>
+        <div class="analysis-grid">
+          <div class="ablock" style="grid-column:1/-1"><h4>Что сделать (сводка)</h4><div id="an-summary"></div></div>
+          <div class="ablock" style="grid-column:1/-1"><h4>План запроса (EXPLAIN)</h4><div id="plan-tree"></div></div>
+          <div class="ablock"><h4>Проблемы плана</h4><div id="plan-issues"></div></div>
+          <div class="ablock"><h4>Рекомендации индексов</h4><div id="index-recs"></div></div>
+          <div class="ablock"><h4>Переписывание</h4><div id="rewrite-recs"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="locks">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Блокировки</h2>
+        <div class="inline-ctrl"><span class="panel-meta" id="locks-meta"></span><button class="btn" onclick="loadLocks(true)">обновить</button></div>
+      </div>
+      <div class="table-wrap"><table id="locks-table">
+        <thead><tr><th>Нода</th><th>PID</th><th>User</th><th>Объект</th><th>Режим</th><th>State</th><th>Запрос</th><th>Выдана</th><th></th></tr></thead>
+        <tbody id="locks-body"><tr><td colspan="9" class="muted center">нажмите «обновить»</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Deadlocks</h2></div>
+      <div class="table-wrap"><table class="mono-t">
+        <thead><tr><th>База</th><th>Дедлоков</th><th>Счётчик с</th></tr></thead>
+        <tbody id="deadlocks-body"><tr><td colspan="3" class="empty">—</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="tune">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Оптимизация кластера</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadTune()">Обновить</button></div>
+      </div>
+      <div class="seg-row" id="tune-tabs">
+        <button class="seg active" data-tune="recs">Рекомендации</button>
+        <button class="seg" data-tune="templates">Шаблоны</button>
+      </div>
+      <div class="tune-pane" data-tune="recs">
+        <p class="muted" style="margin-bottom:10px">Рекомендации рассчитываются под ваше железо: укажите RAM, ядра, соединения и тип дисковой подсистемы — значения параметров пересчитаются автоматически.</p>
+        <div class="tune-form">
+          <label>RAM, GB <input type="number" id="tune-ram" min="1" step="0.5" value="32"></label>
+          <label>CPU, ядра <input type="number" id="tune-cpu" min="1" step="1" value="8"></label>
+          <label>max_connections <input type="number" id="tune-maxconn" min="10" step="10" value="300"></label>
+          <label>Дисковая подсистема
+            <select id="tune-disk">
+              <option value="ssd">SSD (SATA/SAS)</option>
+              <option value="nvme">NVMe</option>
+              <option value="hdd">HDD / RAID</option>
+            </select>
+          </label>
+          <div class="tune-btns">
+            <button class="btn primary" onclick="computeTune()">рассчитать</button>
+            <button class="btn" onclick="loadTune()">Текущие с сервера</button>
+          </div>
+        </div>
+        <div id="tune-out" style="margin-top:16px"></div>
+      </div>
+      <div class="tune-pane hidden" data-tune="templates">
+        <p class="muted" style="margin-bottom:10px">Готовые пресеты postgresql.parameters. Применяются через Patroni <code>/config</code> (может потребоваться перезапуск) — только admin.</p>
+        <div id="tpl-out" class="muted" style="margin:8px 0">загрузка…</div>
+        <div class="panel-head" style="margin-top:12px"><h3>История изменений</h3></div>
+        <table class="mono-t">
+          <thead><tr><th>Когда</th><th>Кто</th><th>Шаблон</th><th>Нода</th><th>Параметры</th></tr></thead>
+          <tbody id="tpl-history"><tr><td colspan="5" class="empty">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="dba">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>DBA Dashboard</h2></div>
+      <div class="seg-row" id="dba-tabs">
+        <button class="seg active" data-dba="summary">Сводка</button>
+        <button class="seg" data-dba="bloat">Bloat</button>
+        <button class="seg" data-dba="vacuum">Vacuum</button>
+        <button class="seg" data-dba="unused">Индексы</button>
+        <button class="seg" data-dba="conn">Соединения</button>
+        <button class="seg" data-dba="idx">Аудит индексов</button>
+      </div>
+      <div class="dba-pane" data-dba="summary">
+        <div id="dba-alerts"></div>
+        <div class="metric-grid">
+          <div class="metric" data-hint="Сессии в состоянии idle in transaction: держат блокировки и мешают VACUUM чистить мёртвые строки"><span class="mk">Зависшие транзакции</span><span class="mv" id="m-idle">—</span></div>
+          <div class="metric" data-hint="Запросы, выполняющиеся дольше порога. Кандидаты на оптимизацию или cancel"><span class="mk">Долгие запросы</span><span class="mv" id="m-long2">—</span></div>
+          <div class="metric" data-hint="Таблицы с большой долей мёртвых строк (bloat): занимают лишнее место и замедляют сканирование"><span class="mk">Раздутые таблицы</span><span class="mv" id="m-bloat">—</span></div>
+          <div class="metric" data-hint="Индексы без единого сканирования с момента сброса статистики: тратят место и замедляют запись"><span class="mk">Неиспользуемые индексы</span><span class="mv" id="m-unused">—</span></div>
+          <div class="metric" data-hint="Таблицы, которым нужен VACUUM: много мёртвых строк, autovacuum давно не проходил"><span class="mk">Ждут VACUUM</span><span class="mv" id="m-vacuum">—</span></div>
+        </div>
+      </div>
+      <div class="dba-pane hidden" data-dba="bloat"><button class="btn" onclick="loadBloat()">обновить</button>
+        <div class="table-wrap" style="margin-top:12px"><table class="mono-t"><thead><tr><th>schema</th><th>table</th><th>dead</th><th>live</th><th>bloat</th><th>size</th><th></th></tr></thead><tbody id="bloat-t"><tr><td colspan="7" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="dba-pane hidden" data-dba="vacuum"><button class="btn" onclick="loadVacuum()">обновить</button>
+        <div class="table-wrap" style="margin-top:12px"><table class="mono-t"><thead><tr><th>schema</th><th>table</th><th>dead</th><th>last autovacuum</th></tr></thead><tbody id="vacuum-t"><tr><td colspan="4" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="dba-pane hidden" data-dba="unused"><button class="btn" onclick="loadUnused()">обновить</button>
+        <div class="table-wrap" style="margin-top:12px"><table class="mono-t"><thead><tr><th>schema</th><th>table</th><th>index</th><th>size</th><th></th></tr></thead><tbody id="unused-t"><tr><td colspan="5" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="dba-pane hidden" data-dba="idx">
+        <div class="inline-ctrl" style="margin-bottom:10px"><label>база <select id="idx-db"></select></label><span class="panel-meta" id="idx-meta"></span></div>
+        <div id="idx-out"></div>
+      </div>
+      <div class="dba-pane hidden" data-dba="conn"><button class="btn" onclick="loadConn()">обновить</button><div id="conn-bar" style="margin-top:12px"></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="querylab">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>SQL‑консоль</h2></div>
+      <div class="inline-ctrl" style="margin-bottom:12px">
+        <label>нода <select id="sql-node"></select></label>
+        <label>база <select id="sql-db"></select></label>
+        <button class="btn primary gate-dba" onclick="execSQL()">Выполнить</button>
+        <button class="btn" onclick="clearSQL()">очистить</button>
+      </div>
+      <textarea id="sql-query" rows="7" placeholder="SELECT * FROM users LIMIT 10;"></textarea>
+      <div id="sql-results" class="sql-results hidden"><div class="sql-meta" id="sql-meta"></div><div id="sql-content"></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="ops">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Операции с кластером</h2></div>
+      <div class="ops-grid">
+        <div class="ocard"><h3>Switchover</h3><p class="muted">Плановая передача роли лидера здоровой реплике. Без потери данных, запись прерывается на секунды.</p>
+          <div class="form2"><label>лидер <select id="sw-leader"></select></label><label>кандидат <select id="sw-candidate"></select></label></div>
+          <button class="btn primary gate-admin" onclick="doSwitchover()">переключить</button></div>
+        <div class="ocard danger"><h3>Failover</h3><p class="muted">Принудительное назначение лидера, когда текущий недоступен. Возможна потеря транзакций, не дошедших до реплики.</p>
+          <div class="form2"><label>кандидат <select id="fo-candidate"></select></label></div>
+          <button class="btn danger gate-admin" onclick="doFailover()">принудительно</button></div>
+        <div class="ocard"><h3>Отложенная реплика</h3><p class="muted">Реплика применяет изменения с задержкой 1–24 ч (recovery_min_apply_delay) — страховка от ошибочного DELETE/DROP.</p>
+          <div class="form2">
+            <label>нода <select id="delay-node" onchange="refreshDelayStatus()"></select></label>
+            <label>задержка <select id="delay-hours"></select></label>
+          </div>
+          <div class="muted" id="delay-current" style="margin:6px 0">текущее отставание: —</div>
+          <button class="btn gate-dba" onclick="applyDelay()">Применить задержку</button>
+          <button class="btn gate-dba" onclick="clearDelay()">Снять</button></div>
+        <div class="ocard danger"><h3>Перезапуск кластера</h3><p class="muted">По очереди: сначала реплики, затем лидер. Нужен для параметров с пометкой «требует рестарта».</p>
+          <button class="btn danger gate-admin" onclick="restartCluster()">перезапустить всё</button>
+          <div id="restart-results" style="margin-top:10px"></div></div>
+        <div class="ocard"><h3>История переключений</h3><button class="btn" onclick="loadHistory()">показать</button><pre id="history-box" class="logbox"></pre></div>
+      </div>
+    </div>
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Глобальный конфиг Patroni (DCS)</h2>
+        <div class="inline-ctrl">
+          <button class="btn" onclick="dcsCfgLoad()">Прочитать из DCS</button>
+          <button class="btn primary gate-admin" onclick="dcsCfgApply()">Записать в DCS</button>
+        </div>
+      </div>
+      <p class="muted" style="margin:6px 0">Чтение/запись ключа <code>/service/&lt;scope&gt;/config</code> напрямую в etcd/consul (Patroni подхватит изменения автоматически). Доступно по ролям: запись — admin.</p>
+      <div class="form2" style="margin:6px 0">
+        <label>ключ <input id="dcs-cfg-key" placeholder="/service/test-db-cluster/config" style="width:360px"></label>
+        <span class="muted" id="dcs-cfg-meta"></span>
+      </div>
+      <textarea id="dcs-cfg-text" rows="14" spellcheck="false" class="logbox mono" style="width:100%;font-family:Consolas,monospace;font-size:12px"># нажмите «прочитать из DCS»
+</textarea>
+      <div id="dcs-cfg-msg" class="muted" style="margin:8px 0"></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="backups">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Бэкапы (wal‑g)</h2>
+        <div class="inline-ctrl">
+          <label>нода <select id="bk-node" onchange="renderBackups()"></select></label>
+          <label>хранить <input type="number" id="bk-keep" value="3" min="1" max="10" style="width:60px"></label>
+          <button class="btn primary gate-dba" onclick="bkCreate(true)">Полный</button>
+          <button class="btn gate-dba" onclick="bkCreate(false)">дельта</button>
+          <button class="btn gate-dba" onclick="bkRotate()">ротация</button>
+          <button class="btn" onclick="bkRefresh()">Обновить</button>
+          <a class="btn" href="/api/metrics/export?format=zabbix" target="_blank" title="Экспорт для zabbix_sender (-i)">Zabbix</a>
+        </div>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted" id="bk-arch-state">WAL‑архив: —</span>
+        <button class="btn gate-admin" onclick="bkArch(true)">включить WAL‑архив</button>
+        <button class="btn gate-admin" onclick="bkArch(false)">выключить</button>
+        <span class="muted" style="color:var(--amber)">включение требует рестарта ноды (Операции → restart)</span>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">Расписание:</span>
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="bk-sched-on"> вкл</label>
+        <label>время <input type="time" id="bk-sched-time" value="02:00"></label>
+        <label>нода <select id="bk-sched-node"><option value="">авто (реплика)</option></select></label>
+        <label>тип <select id="bk-sched-type"><option value="delta">дельта</option><option value="full">полный</option></select></label>
+        <button class="btn gate-admin" onclick="bkSchedSave()">сохранить</button>
+      </div>
+      <div id="bk-status" class="muted" style="margin:8px 0"></div>
+      <div class="table-wrap"><table class="mono-t">
+        <thead><tr><th>Бэкап</th><th>Тип</th><th>Завершён</th><th data-hint="LSN окончания бэкапа: до этой позиции WAL нужен для согласованного восстановления">LSN</th><th></th></tr></thead>
+        <tbody id="bk-body"><tr><td colspan="5" class="empty">—</td></tr></tbody>
+      </table></div>
+      <p class="muted" style="margin-top:8px">Восстановление и PITR разворачиваются в отдельный каталог <code>/var/lib/pgsql/restore/…</code> и НЕ затрагивают живой кластер.</p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Логические дампы (pg_dump)</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadDumps()">Обновить</button></div>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">нода:</span><span class="mono" id="dump-node-name">—</span>
+        <label>база <select id="dump-db"></select></label>
+        <label>режим <select id="dump-mode">
+          <option value="custom">custom (.dump, сжатие -Fc)</option>
+          <option value="dir">dir (-Fd, параллельный -j)</option>
+          <option value="sql-zstd">sql + zstd</option>
+        </select></label>
+        <label>потоки -j <input type="number" id="dump-jobs" value="2" min="1" max="8" style="width:60px"></label>
+        <label>сжатие <input type="number" id="dump-compress" value="3" min="0" max="19" style="width:60px"></label>
+        <button class="btn primary gate-dba" onclick="dumpCreate()">Дамп</button>
+        <label>ротация, дней <input type="number" id="dump-ttl" value="7" min="1" max="365" style="width:70px"></label>
+        <button class="btn gate-dba" onclick="dumpRotate()">ротация</button>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">Расписание дампов:</span>
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ds-sched-on"> вкл</label>
+        <label>время <input type="time" id="ds-sched-time" value="03:00"></label>
+        <label>нода <select id="ds-sched-node"><option value="">авто (реплика)</option></select></label>
+        <label>ротация, дней <input type="number" id="ds-sched-rotate" value="7" min="0" max="365" style="width:70px"></label>
+        <button class="btn gate-admin" onclick="dumpSchedSave()">сохранить</button>
+      </div>
+      <div id="dump-status" class="muted" style="margin:8px 0"></div>
+      <div class="table-wrap"><table class="mono-t">
+        <thead><tr><th>Файл</th><th>Размер</th><th>Дата</th><th></th></tr></thead>
+        <tbody id="dump-body"><tr><td colspan="4" class="empty">—</td></tr></tbody>
+      </table></div>
+      <div class="inline-ctrl gate-admin" style="margin:8px 0">
+        <span class="muted">NFS:</span>
+        <label>share <input id="nfs-share" placeholder="nas01:/exports/backup" style="width:220px"></label>
+        <label>точка <select id="nfs-mp"><option value="/backup">/backup</option><option value="/var/lib/pgsql/backup">/var/lib/pgsql/backup</option><option value="/var/lib/pgsql/dumps-nfs">/var/lib/pgsql/dumps-nfs</option></select></label>
+        <button class="btn gate-admin" onclick="nfsMount()">смонтировать</button>
+        <button class="btn gate-admin" onclick="nfsUmount()">размонтировать</button>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">Клон:</span>
+        <label>путь <input id="clone-path" placeholder="/var/lib/pgsql/restore/20260830_030000" style="width:280px"></label>
+        <button class="btn gate-dba" onclick="cloneInspect()">Инспекция клона</button>
+      </div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">Отчёт:</span>
+        <label>e-mail <input id="report-to" placeholder="dba@example.com" style="width:200px"></label>
+        <button class="btn gate-dba" onclick="sendDumpReport()">Отправить</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="maint">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Обслуживание — раздутые таблицы</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadMaint()">Обновить</button></div>
+      </div>
+      <table class="mono-t">
+        <thead><tr><th>schema</th><th>table</th><th>dead</th><th>live</th><th>bloat %</th><th>размер</th><th></th></tr></thead>
+        <tbody id="maint-bloat-t"><tr><td colspan="7" class="empty">загрузка…</td></tr></tbody>
+      </table>
+      <p class="muted" style="margin-top:8px">Дефрагментация — на лидере через агента: pg_repack (онлайн, если установлен) или VACUUM FULL. Действия admin.</p>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Планировщик обслуживания</h2></div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="maint-on"> вкл</label>
+        <label>время <input type="time" id="maint-time" value="03:30"></label>
+        <label>дни <select id="maint-days" multiple size="1" style="height:auto">
+          <option value="0">Пн</option><option value="1" selected>Вт</option><option value="2">Ср</option>
+          <option value="3">Чт</option><option value="4" selected>Пт</option><option value="5">Сб</option><option value="6">Вс</option>
+        </select></label>
+        <label>порог bloat % <input type="number" id="maint-pct" value="40" min="5" max="95" style="width:70px"></label>
+        <label>таблиц <input type="number" id="maint-n" value="5" min="1" max="20" style="width:60px"></label>
+        <label>метод <select id="maint-method"><option value="auto">auto</option><option value="repack">pg_repack</option><option value="vacuum">VACUUM FULL</option></select></label>
+        <button class="btn gate-admin" onclick="maintSchedSave()">сохранить</button>
+      </div>
+      <p class="muted">В окно (дни недели + время) консоль сама найдет таблицы с bloat выше порога на лидере и запустит дефрагментацию через агента.</p>
+    </div>
+
+  </section>
+
+  <section class="screen" data-screen="slots">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Слоты репликации</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadSlots()">Обновить</button></div></div>
+      <div id="slots-out" class="muted" style="margin-top:10px">нажми «Обновить» — по каждому узлу покажутся слоты (лаг, активность, «опасно») и активные реплики.</div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="reports">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Отчёты (PWR)</h2>
+        <div class="inline-ctrl">
+          <label>с <select id="rep-from"></select></label>
+          <label>по <select id="rep-to"></select></label>
+          <button class="btn primary" onclick="reportGenerate()">сформировать</button>
+          <button class="btn" onclick="reportNow()">Снять</button>
+          <button class="btn" onclick="loadReports()">Обновить</button>
+        </div>
+      </div>
+      <div id="report-out" class="muted" style="margin-top:10px">Выберите период и нажмите «сформировать». Снимки копятся каждые 60 секунд.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Еженедельный отчёт</h2>
+        <div class="inline-ctrl"><a class="btn primary" href="/report/weekly" target="_blank" rel="noopener">Открыть отчёт</a><button class="btn gate-admin" onclick="weeklySend()">Отправить сейчас</button></div></div>
+      <p class="muted" style="margin-bottom:10px">Риски, бэкапы и проверки восстановления, алерты, рост баз и прогноз на 30 дней, заполнение дисков, тяжёлые запросы, безопасность и версии. Открывается как страница для печати или сохранения в PDF; краткая версия рассылается по расписанию через каналы уведомлений.</p>
+      <div class="inline-ctrl">
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="wk-on"> рассылать</label>
+        <label>день <select id="wk-day"><option value="0">понедельник</option><option value="1">вторник</option><option value="2">среда</option><option value="3">четверг</option><option value="4">пятница</option><option value="5">суббота</option><option value="6">воскресенье</option></select></label>
+        <label>время <input type="time" id="wk-time" value="09:00" style="width:auto"></label>
+        <button class="btn gate-admin" onclick="weeklySave()">Сохранить</button>
+        <span class="panel-meta" id="wk-meta"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="ai">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>AI-ассистент DBA</h2>
+        <div class="inline-ctrl">
+          <button class="btn" onclick="aiAsk('lag кратко')">Лаг</button>
+          <button class="btn" onclick="aiDiagnose()">Диагностика</button>
+          <button class="btn" onclick="aiAsk('bloat и вакуум')">Bloat</button>
+          <button class="btn" onclick="aiAsk('тяжёлые запросы и индексы')">Индексы</button>
+          <button class="btn" onclick="aiAdvice()">Тюнинг</button>
+          <button class="btn" onclick="loadAiHistory()">Обновить</button>
+        </div>
+      </div>
+      <div class="chat-box" id="ai-chat">
+        <div class="ai-msg instruct">Привет! Я локальный ассистент по жизненному циклу PostgreSQL.
+          Спрашивай про лаг, bloat, индексы, бэкапы, конфигурацию, соединения, Patroni, вакуум —
+          отвечу с учётом реального состояния кластера.</div>
+      </div>
+      <div class="inline-ctrl" style="margin-top:10px">
+        <input id="ai-input" placeholder="Например: почему лаг репликации вырос?" style="flex:1;min-width:0"
+               onkeydown="if(event.key==='Enter') aiSend()">
+        <button class="btn primary" onclick="aiSend()">Спросить</button>
+        <button class="btn" onclick="clearAi()">очистить</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Локальный движок (эвристики + шаблоны), без внешних API — работает в закрытой сети.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="alerts">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Алерты</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadAlerts()">Обновить</button></div></div>
+      <div class="seg-row" id="alerts-tabs">
+        <button class="seg active" data-al="rules">Правила</button>
+        <button class="seg" data-al="history">История</button>
+      </div>
+      <div class="al-pane" data-al="rules">
+        <div class="inline-ctrl" style="margin:10px 0">
+          <label>имя <input id="al-name" placeholder="Высокий лаг"></label>
+          <label>метрика <select id="al-metric">
+            <option value="max_lag">max_lag — лаг, байты WAL</option>
+            <option value="replay_lag_s">replay_lag_s — лаг, секунды</option>
+            <option value="xid_age_pct">xid_age_pct — возраст XID, % от предела</option>
+            <option value="backup_age_h">backup_age_h — часов с последнего бэкапа</option>
+            <option value="archive_failing">archive_failing — архивация WAL падает (1/0)</option>
+            <option value="slots_at_risk">slots_at_risk — слотов в зоне риска</option>
+            <option value="idle_in_tx">idle_in_tx</option>
+            <option value="locks_waiting">locks_waiting</option>
+            <option value="long_queries">long_queries</option>
+            <option value="deadlocks">deadlocks</option>
+            <option value="tps">tps</option>
+            <option value="cache_hit_ratio">cache_hit_ratio (%)</option>
+          </select></label>
+          <label>оператор <select id="al-op"><option>&gt;</option><option>&lt;</option><option>&gt;=</option><option>&lt;=</option><option>==</option></select></label>
+          <label>порог <input id="al-threshold" type="number" value="100"></label>
+          <label>важность <select id="al-severity"><option>warning</option><option>critical</option><option>info</option></select></label>
+          <button class="btn primary gate-dba" onclick="alertRuleSave()">добавить</button>
+        </div>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Имя</th><th>Метрика</th><th>Условие</th><th>Важность</th><th>Вкл</th><th></th></tr></thead><tbody id="alerts-rules-body"><tr><td colspan="6" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="al-pane hidden" data-al="history">
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Время</th><th>Правило</th><th>Тип</th><th>Важность</th><th>Значение</th></tr></thead><tbody id="alerts-history-body"><tr><td colspan="5" class="empty">—</td></tr></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Уведомления</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadNotifyCfg()">Обновить</button></div></div>
+      <div class="inline-ctrl" style="margin:8px 0">
+        <span class="muted">email:</span>
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="nt-email-on"> вкл</label>
+        <label>кому <input id="nt-email-to" placeholder="dba@example.com" style="width:200px"></label>
+        <label>метод <select id="nt-email-method"><option value="msmtp">msmtp</option><option value="smtp">SMTP</option></select></label>
+      </div>
+      <div id="nt-diag" style="margin:6px 0;font-size:.85em"></div>
+      <div class="inline-ctrl" style="margin:6px 0">
+        <span class="muted" style="width:110px">smtp host / port</span>
+        <input id="nt-smtp-host" placeholder="smtp.example.com" style="width:190px">
+        <input id="nt-smtp-port" value="587" style="width:60px">
+        <input id="nt-smtp-user" placeholder="user" style="width:110px">
+        <input id="nt-smtp-pass" type="password" placeholder="пароль" style="width:110px">
+        <input id="nt-from" placeholder="from@example.com" style="width:170px">
+      </div>
+      <div class="inline-ctrl" style="margin:6px 0">
+        <span class="muted">telegram:</span>
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="nt-tg-on"> вкл</label>
+        <label>bot token <input id="nt-tg-token" placeholder="12345:ABC…" style="width:220px"></label>
+        <label>chat_id <input id="nt-tg-chat" placeholder="-100123456789" style="width:150px"></label>
+      </div>
+      <div class="inline-ctrl" style="margin:6px 0">
+        <span class="muted">маршруты:</span>
+        <label>critical <select id="nt-route-critical" multiple size="1" style="height:auto"><option value="email">email</option><option value="telegram">telegram</option></select></label>
+        <label>warning <select id="nt-route-warning" multiple size="1" style="height:auto"><option value="email">email</option><option value="telegram">telegram</option></select></label>
+        <button class="btn gate-admin" onclick="notifySave()">сохранить</button>
+        <button class="btn gate-admin" onclick="notifyTest()">Тест</button>
+      </div>
+      <p class="muted" style="margin:6px 0">Уведомления шлются при срабатывании и при восстановлении алерта (fire/resolved) через выбранные каналы в зависимости от важности. Тест отправит «warning».</p>
+      <div class="table-wrap"><table class="mono-t">
+        <thead><tr><th>Время</th><th>Канал</th><th>Важность</th><th>Тема</th><th>Статус</th></tr></thead>
+        <tbody id="notify-log-body"><tr><td colspan="5" class="muted center">журнал пуст</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="admin">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Админ</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadAdmin()">Обновить</button></div></div>
+      <div class="seg-row" id="admin-tabs">
+        <button class="seg active" data-admin="ext">Расширения</button>
+        <button class="seg" data-admin="roles">Роли</button>
+        <button class="seg" data-admin="ts">Табличные пространства</button>
+        <button class="seg" data-admin="diff">Diff конфигов</button>
+        <button class="seg" data-admin="patroni">Patroni config</button>
+      </div>
+      <div class="admin-pane" data-admin="ext">
+        <h4 style="margin:10px 0 6px">Установленные</h4>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Расширение</th><th>Версия</th><th>Схема</th><th></th></tr></thead><tbody id="admin-ext-installed"><tr><td colspan="4" class="empty">—</td></tr></tbody></table></div>
+        <h4 style="margin:10px 0 6px">Доступные для установки</h4>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Расширение</th><th>Версия</th><th>Описание</th><th></th></tr></thead><tbody id="admin-ext-available"><tr><td colspan="4" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="admin-pane hidden" data-admin="roles">
+        <div class="inline-ctrl" style="margin:10px 0">
+          <label>имя <input id="admin-role-name" placeholder="app_reader"></label>
+          <label>пароль <input id="admin-role-pass" type="password"></label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="admin-role-login" checked> login</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="admin-role-super"> super</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="admin-role-createdb"> createdb</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="admin-role-createrole"> createrole</label>
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="admin-role-repl"> repl</label>
+          <button class="btn primary gate-admin" onclick="adminRoleCreate()">создать</button>
+        </div>
+        <div class="inline-ctrl" style="margin:8px 0">
+          <label>выдать роль <input id="admin-grant-role" placeholder="группа"></label>
+          <label>пользователю <input id="admin-grant-member" placeholder="юзер"></label>
+          <button class="btn gate-admin" onclick="adminRoleGrant()">GRANT</button>
+        </div>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Роль</th><th>Флаги</th><th>connlimit</th><th>Член групп</th><th></th></tr></thead><tbody id="admin-roles-body"><tr><td colspan="5" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="admin-pane hidden" data-admin="ts">
+        <div class="inline-ctrl" style="margin:10px 0">
+          <label>имя <input id="admin-ts-name" placeholder="fast_ssd"></label>
+          <label>location <input id="admin-ts-loc" placeholder="/mnt/ssd/pg_ts"></label>
+          <button class="btn primary gate-admin" onclick="adminTsCreate()">создать</button>
+        </div>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Имя</th><th>Location</th><th>Размер</th><th></th></tr></thead><tbody id="admin-ts-body"><tr><td colspan="4" class="empty">—</td></tr></tbody></table></div>
+      </div>
+      <div class="admin-pane hidden" data-admin="diff">
+        <div class="inline-ctrl" style="margin:10px 0">
+          <label>нода A <select id="admin-diff-a"></select></label>
+          <label>нода B <select id="admin-diff-b"></select></label>
+          <button class="btn primary" onclick="adminDiff()">сравнить</button>
+        </div>
+        <div class="table-wrap"><table class="mono-t"><thead><tr><th>Параметр</th><th>A</th><th>source A</th><th>B</th><th>source B</th></tr></thead><tbody id="admin-diff-body"><tr><td colspan="5" class="muted center">выберите ноды и нажмите «сравнить»</td></tr></tbody></table></div>
+      </div>
+      <div class="admin-pane hidden" data-admin="patroni">
+        <div class="inline-ctrl" style="margin:10px 0">
+          <label>нода A <select id="admin-pat-a"></select></label>
+          <label>нода B <select id="admin-pat-b"></select></label>
+          <button class="btn primary" onclick="adminPatroniDiff()">сравнить patroni.yml</button>
+        </div>
+        <p class="muted">Сравнивает оригинальные файлы <code>patroni.yml</code> на двух нодах через агентов. Нодоспецифичные поля (name, listen, connect_address) исключены.</p>
+        <div class="table-wrap" style="margin-top:10px"><table class="mono-t">
+          <thead><tr><th>Путь в YAML</th><th>A</th><th>B</th></tr></thead>
+          <tbody id="admin-pat-body"><tr><td colspan="3" class="muted center">выберите ноды и нажмите «сравнить»</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="screen" data-screen="risk">
+    <div id="risk-tiles" class="risk-tiles" aria-live="polite"><div class="skeleton"><i></i><i></i></div></div>
+
+    <div class="panel" id="risk-wrap-panel">
+      <div class="panel-head"><h2 data-hint="Счётчик транзакций PostgreSQL 32-битный. Когда возраст самой старой незамороженной строки подходит к 2^31, база перестаёт принимать запись, пока не будет выполнен VACUUM FREEZE.">Wraparound XID и MultiXact</h2>
+        <span class="panel-meta" id="risk-wrap-meta"></span></div>
+      <div id="risk-wrap"><div class="skeleton"><i></i><i></i><i></i></div></div>
+    </div>
+
+    <div class="panel" id="risk-backup-panel">
+      <div class="panel-head"><h2 data-hint="RPO — сколько данных можно потерять при аварии: время с последнего бэкапа плюс задержка архивации WAL.">Бэкапы, архивация WAL и проверка восстановления</h2>
+        <div class="inline-ctrl"><button class="btn primary gate-admin" onclick="riskRestoreTest()" data-hint="Агент развернёт последний бэкап во временный каталог, поднимет PostgreSQL на отдельном порту, проверит чтение баз и удалит копию. Живой кластер не затрагивается.">Проверить восстановление</button></div></div>
+      <div id="risk-backup"><div class="skeleton"><i></i><i></i></div></div>
+    </div>
+
+    <div class="panel" id="risk-slots-panel">
+      <div class="panel-head"><h2 data-hint="Слот не даёт удалять WAL, пока потребитель его не прочитал. Брошенный слот заполняет диск лидера, а при превышении max_slot_wal_keep_size теряет WAL.">Слоты репликации: удержание WAL</h2></div>
+      <div id="risk-slots"><div class="skeleton"><i></i><i></i></div></div>
+    </div>
+
+    <div class="panel" id="risk-repl-panel">
+      <div class="panel-head"><h2 data-hint="Отставание во времени из pg_stat_replication: сколько секунд проходит от фиксации на лидере до применения на реплике.">Лаг репликации во времени</h2></div>
+      <div id="risk-repl"><div class="skeleton"><i></i><i></i></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="ash">
+    <div class="panel">
+      <div class="panel-head"><h2 data-hint="Active Session History: раз в секунду консоль фиксирует, чем заняты активные сессии. Высота столбика — среднее число активных сессий (AAS), цвет — чего они ждали.">Активные сессии (ASH)</h2>
+        <div class="inline-ctrl">
+          <label>узел <select id="ash-node"><option value="">все узлы</option></select></label>
+          <label>период <select id="ash-minutes"><option value="5">5 мин</option><option value="15" selected>15 мин</option><option value="30">30 мин</option><option value="60">1 час</option></select></label>
+          <span class="panel-meta" id="ash-meta"></span>
+        </div>
+      </div>
+      <div id="ash-tiles" class="metric-grid" style="margin-bottom:12px"></div>
+      <div class="chart-box"><canvas id="ash-chart"></canvas></div>
+      <p class="muted ash-legend">CPU — сессия выполняется и ничего не ждёт. IO — чтение/запись файлов данных и WAL. Lock — ждёт блокировку строки или таблицы (часто — чужую незавершённую транзакцию). LWLock — внутренние блокировки PostgreSQL (буферы, WAL). Client — ждёт приложение. IdleTx — транзакция открыта, но ничего не делает.</p>
+    </div>
+    <div class="ash-grid">
+      <div class="panel"><div class="panel-head"><h2>Ожидания</h2></div><div id="ash-events"></div></div>
+      <div class="panel"><div class="panel-head"><h2>Пользователи и базы</h2></div><div id="ash-who"></div></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Запросы, на которые уходит время</h2></div><div id="ash-queries"></div></div>
+  </section>
+
+  <section class="screen" data-screen="perf">
+    <div class="panel">
+      <div class="panel-head"><h2>Производительность</h2></div>
+      <div class="seg-row" id="perf-tabs">
+        <button class="seg active" data-perf="stmt">Запросы и регрессии</button>
+        <button class="seg" data-perf="ckpt">Контрольные точки и WAL</button>
+        <button class="seg" data-perf="prog">Долгие операции</button>
+      </div>
+      <div class="perf-pane" data-perf="stmt">
+        <div class="inline-ctrl" style="margin-bottom:10px">
+          <label>период <select id="stmt-hours"><option value="1">1 час</option><option value="6">6 часов</option><option value="24">сутки</option><option value="168">неделя</option></select></label>
+          <span class="panel-meta" id="stmt-meta"></span>
+        </div>
+        <div id="stmt-regr"></div>
+        <div id="stmt-top"><div class="skeleton"><i></i><i></i><i></i></div></div>
+      </div>
+      <div class="perf-pane hidden" data-perf="ckpt"><div id="ckpt-out"><div class="skeleton"><i></i><i></i></div></div></div>
+      <div class="perf-pane hidden" data-perf="prog"><p class="muted" style="margin-bottom:8px">VACUUM, ANALYZE, CREATE INDEX, CLUSTER/VACUUM FULL, pg_basebackup, COPY на всех узлах. Обновляется каждые 3 секунды.</p><div id="prog-out"></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="logs">
+    <div class="panel">
+      <div class="panel-head"><h2>Журналы PostgreSQL</h2>
+        <div class="inline-ctrl">
+          <label>узел <select id="logs-node"></select></label>
+          <label>прочитать <select id="logs-mb"><option value="4">4 МБ</option><option value="8" selected>8 МБ</option><option value="32">32 МБ</option><option value="64">64 МБ</option></select></label>
+          <button class="btn primary gate-dba" onclick="logsScan()">Разобрать журнал</button>
+        </div>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Агент читает конец текущего файла журнала (pg_current_logfile), консоль группирует ошибки, медленные запросы, временные файлы, ожидания блокировок, автовакуум и неудачные входы.</p>
+      <div id="logs-settings"></div>
+      <div id="logs-out"></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="security">
+    <div class="panel">
+      <div class="panel-head"><h2>Аудит безопасности</h2>
+        <div class="inline-ctrl"><span class="panel-meta" id="sec-meta"></span><button class="btn" onclick="loadSecurity(true)">Проверить заново</button></div></div>
+      <div id="sec-out"><div class="skeleton"><i></i><i></i><i></i></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="upgrade">
+    <div class="panel">
+      <div class="panel-head"><h2>Версии и обновления PostgreSQL</h2>
+        <div class="inline-ctrl"><label>переход на <select id="upg-target"></select></label><span class="panel-meta" id="upg-meta"></span></div></div>
+      <div id="upg-out"><div class="skeleton"><i></i><i></i><i></i></div></div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="audit">
+    <div class="panel reveal">
+      <div class="panel-head"><h2>Аудит действий</h2>
+        <div class="inline-ctrl"><button class="btn" onclick="loadAudit()">Обновить</button></div></div>
+      <div class="table-wrap"><table class="mono-t">
+        <thead><tr><th>Время</th><th>Пользователь</th><th>Метод</th><th>Запрос</th></tr></thead>
+        <tbody id="audit-body"><tr><td colspan="4" class="empty">—</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+
+<footer class="logbar">
+  <details class="logbar-wrap" open>
+    <summary class="logbar-head">Журнал действий <span class="count" id="log-count"></span></summary>
+    <div id="op-log" class="logbox" role="log" aria-live="off"></div>
+  </details>
+</footer>
+
+<div id="login-overlay" class="modal hidden"><div class="modal-box login-box">
+  <h3 class="login-title">Patroni Console</h3>
+  <p class="login-sub">Управление и мониторинг кластеров PostgreSQL</p>
+  <label class="login-l">Логин<input id="login-user" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+  <label class="login-l">Пароль<input id="login-pass" type="password" autocomplete="current-password"></label>
+  <div id="login-err" style="color:var(--crit);min-height:18px;text-align:center"></div>
+  <button class="btn primary" id="login-submit">Войти</button>
+  <p class="login-foot muted" id="login-foot"></p>
+</div></div>
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-box">
+  <h3 id="modal-title">Подтверждение</h3><p id="modal-text"></p>
+  <div id="modal-require" class="modal-require hidden">
+    <label for="modal-input">Для подтверждения введите <b class="mono" id="modal-require-word"></b></label>
+    <input id="modal-input" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="modal-actions"><button class="btn" onclick="closeModal()">Отмена</button><button class="btn primary" id="modal-confirm">Подтвердить</button></div>
+</div></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<noscript><div style="padding:20px;color:#cc4a3c">Для работы консоли нужен включённый JavaScript.</div></noscript>
+
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/vendor/luxon.min.js"></script>
+<script src="/static/vendor/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="/static/ui-kit.js?v={{ asset_v }}"></script>
+<script src="/static/app-core.js?v={{ asset_v }}"></script>
+<script src="/static/app-modules.js?v={{ asset_v }}"></script>
+<script src="/static/app-dba.js?v={{ asset_v }}"></script>
+</body>
+</html>
+

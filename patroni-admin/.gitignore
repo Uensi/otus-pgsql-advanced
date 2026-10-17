@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+# рабочие конфиги и данные: содержат пароли и журналы
+config.yaml
+config.yaml_test
+*.jsonl
+backup_schedule.json
+dump_schedule.json
+maint_schedule.json
+notify_config.json
+dcs_config.json
+.demo-data/
+.claude/settings.local.json
+*.tmp

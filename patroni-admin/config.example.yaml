@@ -1,0 +1,56 @@
+# Patroni Console — пример конфигурации. Скопируйте в config.yaml и заполните.
+# Права на файл: chmod 600 config.yaml (здесь пароли).
+
+web:
+  host: 0.0.0.0
+  port: 5000
+  # Секрет подписи сессий (обязателен в проде, иначе сессии сбрасываются при рестарте):
+  #   python3 -c "import secrets; print(secrets.token_hex(32))"
+  # Можно передать через переменную окружения PATRONI_CONSOLE_SECRET.
+  secret: "замените-на-случайную-строку"
+  cookie_secure: false      # true, если консоль открывают по HTTPS
+  trust_proxy: false        # true только за своим reverse-proxy (nginx): доверять X-Forwarded-For
+  # metrics_token: "..."    # закрыть /metrics (Prometheus) токеном: Authorization: Bearer <token>
+
+postgres:                   # учётка для подключения консоли к PostgreSQL на узлах
+  user: postgres
+  password: "пароль"
+  database: postgres
+  port: 5432
+
+agents:
+  key: "общий-ключ-агентов" # агент на узле передаёт его при регистрации (PATRONI_CONSOLE_KEY)
+
+clusters:                   # первый в списке — активный при старте
+  - name: main-cluster
+    nodes:                  # REST API Patroni на каждом узле (порт 8008)
+      - { name: pg-node1, host: 10.0.0.11, port: 8008 }
+      - { name: pg-node2, host: 10.0.0.12, port: 8008 }
+      - { name: pg-node3, host: 10.0.0.13, port: 8008 }
+
+users:                      # роли: viewer — просмотр, dba — обслуживание, admin — всё
+  # Пароль можно хранить хешем (рекомендуется):
+  #   python3 -c "from werkzeug.security import generate_password_hash as h; print(h('пароль'))"
+  - { name: admin,  password: "scrypt:32768:8:1$...", role: admin }
+  - { name: dba,    password: "пароль-dba",           role: dba }
+  - { name: viewer, password: "пароль-viewer",        role: viewer }
+
+patroni:
+  config_path: /etc/patroni/patroni.yml   # путь к patroni.yml на узлах (для операций через агента)
+
+# Вход доменными учётными записями (Active Directory / LDAP). Локальные users выше
+# продолжают работать — например, аварийный admin на случай недоступности контроллера.
+# ldap:
+#   enabled: true
+#   url: ldaps://dc1.corp.local:636, ldaps://dc2.corp.local:636
+#   ca_file: /etc/ssl/certs/corp-ca.pem
+#   bind_dn: "CN=svc-pgconsole,OU=Service,DC=corp,DC=local"
+#   bind_password: ""              # или переменная PATRONI_CONSOLE_LDAP_PASSWORD
+#   base_dn: "DC=corp,DC=local"
+#   user_filter: "(&(objectClass=user)(sAMAccountName={user}))"
+#   nested_groups: true
+#   hint: "учётная запись CORP"    # подсказка на форме входа
+#   group_roles:
+#     "CN=PG-Admins,OU=Groups,DC=corp,DC=local": admin
+#     "CN=PG-DBA,OU=Groups,DC=corp,DC=local": dba
+#     "CN=PG-Viewers,OU=Groups,DC=corp,DC=local": viewer
