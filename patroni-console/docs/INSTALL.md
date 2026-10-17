@@ -36,6 +36,9 @@ sudo WHEELS=./wheelhouse ./deploy/install.sh
 
 ### Windows
 
+Готовый вариант для одного компьютера (консоль и тестовый кластер в WSL2, установка без интернета,
+запуск из Windows через `start.cmd`) описан в [deploy/wsl/README.md](../deploy/wsl/README.md).
+
 Консоль работает в WSL2 (Ubuntu 22.04 или 24.04). Включите systemd в `/etc/wsl.conf`
 (`[boot]` и `systemd=true`), перезапустите WSL командой `wsl --shutdown` и ставьте как на обычный Linux.
 Консоль открывается в браузере Windows по адресу `https://localhost:8443/`. Если WSL не выходит
