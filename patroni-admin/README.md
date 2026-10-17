@@ -10,6 +10,8 @@ SQL-консоль, операции (switchover/failover/restart), бэкапы
 обслуживание (pg_repack + планировщик), шаблоны конфигов, здоровье DCS (etcd/Consul),
 AI-ассистент, экспорт в Prometheus/Zabbix.
 
+Скриншоты всех экранов: [docs/screenshots](docs/screenshots/index.html) (48 шт., демо-режим).
+
 ## Возможности
 
 ### Кластер и инфраструктура

@@ -16,6 +16,7 @@ from collections import deque
 from flask import jsonify, request, session
 
 import demo_dba
+import demo_more
 
 ENABLED = bool(os.environ.get('PATRONI_CONSOLE_DEMO'))
 
@@ -143,6 +144,24 @@ def _demo_post(path):
         cid = f'{node}-{int(time.time() * 1000)}'
         _DEMO_CMDS[cid] = {'kind': 'restore', 'node': node, 'ready': time.time() + 6}
         return {'ok': True, 'data': {'cmd_id': cid, 'node': node}}
+    if path == '/api/dumps' and b.get('action') == 'list':
+        cid = f'{node}-{int(time.time() * 1000)}'
+        _DEMO_CMDS[cid] = {'kind': 'dumps', 'node': node, 'ready': time.time()}
+        return {'ok': True, 'data': {'cmd_id': cid}}
+    if path == '/api/assistant/diagnose':
+        r = _risk()
+        issues = [{'sev': 'warning', 'what': i['text'], 'detail': ''} for i in r['items']]
+        if _lag('pg-node3') > 10 * 2**20:
+            issues.insert(0, {'sev': 'warning', 'what': 'pg-node3 отстаёт от лидера', 'detail': 'проверьте нагрузку на диск реплики и сеть'})
+        return {'ok': True, 'data': {'summary': f'Найдено проблем: {len(issues)} (критичных нет)', 'issues': issues}}
+    if path == '/api/assistant/chat':
+        return {'ok': True, 'data': demo_more.ai_reply(b.get('message') or '')}
+    if path == '/api/assistant/config-advice':
+        return {'ok': True, 'data': {'tips': demo_more.AI_TIPS}}
+    if path == '/api/analyze-query':
+        return demo_more.analyze(b.get('query') or '')
+    if path == '/api/querylab/exec':
+        return demo_more.exec_sql(b.get('sql'))
     if path == '/api/risk/freeze':
         return {'ok': True, 'data': {'job': 'demo', 'message': f"демо: VACUUM FREEZE {b.get('schema')}.{b.get('table')} не выполняется"}}
     return {'ok': True, 'data': {'message': 'демо-режим: действие не выполняется', 'summary': 'демо-режим: действие не выполняется'}}
@@ -153,6 +172,12 @@ def _demo_cmd_result():
     c = _DEMO_CMDS.get(cid)
     if not c or time.time() < c['ready']:
         return {'ok': True, 'data': None}
+    if c['kind'] == 'dumps':
+        now = time.time()
+        return {'ok': True, 'data': {'ok': True, 'out': {'data': [
+            {'name': f'billing_{time.strftime("%Y%m%d", time.localtime(now - d * 86400))}_030000.dump', 'size': int((9.4 - d * 0.1) * 2**30),
+             'mtime': now - d * 86400, 'is_dir': False} for d in range(5)] + [
+            {'name': 'erp_1c_20261016_031500.d', 'size': 61 * 2**30, 'mtime': now - 86400, 'is_dir': True}]}}}
     if c['kind'] == 'restore':
         return {'ok': True, 'data': {'ok': True, 'out': {'data': {
             'backup': 'base_000000070000005A00000004', 'duration_s': 2290.4, 'fetch_s': 1874.2, 'recovery_s': 401.7, 'size': 538 * 2**30,
@@ -165,6 +190,24 @@ def _routes():
     _tick()
     return {
         '/api/risk/summary': lambda: {'ok': True, 'data': _risk()},
+        '/api/schema': lambda: demo_more.schema(request.args.get('db') or 'billing'),
+        '/api/querylab/slow': demo_more.slow,
+        '/api/querylab/current': demo_more.current,
+        '/api/querylab/show': lambda: {'ok': True, 'data': {'node': request.args.get('node'), 'param': request.args.get('param', '').upper(),
+                                                             'value': 'on' if request.args.get('param', '').lower() == 'archive_mode' else '0'}},
+        '/api/dba/connections': lambda: demo_more.connections([n['name'] for n in NODES]),
+        '/api/dba/config-recs': demo_more.config_recs,
+        '/api/templates': demo_more.templates,
+        '/api/admin/extensions': demo_more.admin_extensions,
+        '/api/admin/roles': demo_more.admin_roles,
+        '/api/admin/tablespaces': demo_more.admin_ts,
+        '/api/admin/nodes': lambda: {'ok': True, 'data': [n['name'] for n in NODES]},
+        '/api/admin/config-diff': demo_more.config_diff,
+        '/api/admin/patroni-diff': demo_more.patroni_diff,
+        '/api/reports/snapshots': demo_more.report_snapshots,
+        '/api/reports/generate': lambda: demo_more.report_generate(float(request.args.get('from') or time.time() - 86400), float(request.args.get('to') or time.time())),
+        '/api/ops/history': demo_more.ops_history,
+        '/api/dcs/patroni-config': demo_more.dcs_config,
         '/api/risk/jobs': lambda: {'ok': True, 'data': []},
         '/api/risk/config': lambda: {'ok': True, 'data': __import__('risk').DEFAULTS},
         '/api/ash': lambda: {'ok': True, 'data': demo_dba.ash(int(request.args.get('minutes', 15)))},
@@ -204,7 +247,10 @@ def _routes():
             {'datname': 'postgres', 'size': 9 * 2**20, 'connections': 3, 'cache_hit': 99.9, 'xact_commit': 902_331, 'xact_rollback': 4, 'growth_rate': None, 'encoding': 'UTF8'}]},
         '/api/dba/summary': lambda: {'ok': True, 'data': {
             'alerts': [{'type': 'warning', 'msg': 'erp_1c: таблица _accumrg1234 — 38% мёртвых строк, нужен VACUUM'}],
-            'idle': [{}] if _wave(45) > 0.8 else [], 'long': [], 'bloat': [{}, {}], 'unused': [{}, {}, {}], 'vacuum': [
+            'idle': [{}] if _wave(45) > 0.8 else [], 'long': [], 'bloat': [{}, {}], 'unused': [
+                {'schemaname': 'public', 't': '_document312', 'ix': '_document312_old_number', 'sz': 7 * 2**30},
+                {'schemaname': 'public', 't': 'payments', 'ix': 'payments_account_idx', 'sz': int(1.8 * 2**30)},
+                {'schemaname': 'public', 't': 'audit_log', 'ix': 'audit_log_actor_idx', 'sz': 3 * 2**30}], 'vacuum': [
                 {'schemaname': 'public', 'relname': '_accumrg1234', 'n_dead_tup': 1_830_220, 'last_autovacuum': '2026-10-16 22:14:05'}],
             'deadlocks': [{'datname': 'erp_1c', 'deadlocks': 2, 'stats_reset': '2026-09-01 00:00:00'}]}},
         '/api/dba/bloat': lambda: {'ok': True, 'data': {'tables': [

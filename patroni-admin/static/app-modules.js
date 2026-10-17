@@ -30,6 +30,7 @@
     if(typeof Chart === 'undefined' || !document.getElementById(id)) return null;
     if(window.__charts[id]) window.__charts[id].destroy();
     var opts = multi ? makeMultiOpts(yFmt) : makeChartOpts(yFmt);
+    if(type === 'bar'){ opts.scales.x = { type:'category', grid:{display:false}, ticks:{color:cssVar('--muted')} }; }
     var cfg = type === 'bar'
       ? { type:'bar', data:{labels:[], datasets:[{data:[], backgroundColor:'#3d7ab5'}]}, options:opts }
       : { type:'line', data:{datasets:[{data:[], borderColor:'#3d7ab5', tension:0.2, pointRadius:0, borderWidth:2, fill:true, backgroundColor:'rgba(61,122,181,0.08)'}]}, options:opts };
@@ -76,7 +77,7 @@
       morph(box, j.data.map(function(c){
         var chips = c.members.map(function(m){
           var isL = ['leader','master','primary'].indexOf((m.role||'').toLowerCase()) >= 0;
-          return '<span class="nchip-state '+(m.state==='running'?'ok':'bad')+'" style="margin-right:6px">'+(isL?'лидер · ':'')+esc(m.name)+'</span>';
+          return '<span class="nchip-state '+(['running','streaming'].indexOf(m.state)>=0?'ok':'bad')+'" style="margin-right:6px">'+(isL?'лидер · ':'')+esc(m.name)+'</span>';
         }).join('');
         return '<div class="ocard" style="'+(c.active?'border:2px solid var(--good);':'')+'">'
           +'<h3>'+esc(c.name)+(c.active?' <span class="badge role-master">активен</span>':'')+(c.up===false?' <span class="badge role-replica">недоступен</span>':'')+'</h3>'
@@ -184,9 +185,9 @@
     items.sort(function(a,b){ return a.forecast.hours - b.forecast.hours; });
     morph(fbox, '<table><thead><tr><th>Хост</th><th>Диск</th><th>Занято</th><th>Свободно</th><th>Темп роста</th><th>Прогноз заполнения</th></tr></thead><tbody>'
       + items.map(function(it){
-        var urgent = it.forecast.hours < 48;
+        var hrs = it.forecast.hours, fcol = hrs < 24*7 ? 'var(--crit)' : (hrs < 24*30 ? 'var(--amber)' : 'var(--good)');
         return '<tr><td>'+esc(it.host)+'</td><td class="mono">'+esc(it.path)+'</td><td>'+it.used_pct+'%</td><td>'+fb(it.free)+'</td><td>'+it.forecast.slope_mb_h+' МБ/ч</td>'
-          +'<td><b style="color:'+(urgent?'var(--crit)':'var(--good)')+'">'+(it.forecast.hours>48 ? Math.round(it.forecast.hours/24)+' дней' : Math.round(it.forecast.hours)+' часов')+'</b></td></tr>';
+          +'<td><b style="color:'+fcol+'">'+(it.forecast.hours>48 ? Math.round(it.forecast.hours/24)+' дней' : Math.round(it.forecast.hours)+' часов')+'</b></td></tr>';
       }).join('')+'</tbody></table>');
   }
   function hostSvc(node, svc, action){
@@ -474,7 +475,7 @@
       morph(document.getElementById('plan-tree'), d.plan_error
         ? '<div class="sqlerr">'+esc(d.plan_error)+'</div>'
         : (d.plan
-            ? planNodeHTML(d.plan.Plan || {}, 0)
+            ? planNodeHTML(((Array.isArray(d.plan) ? d.plan[0] : d.plan) || {}).Plan || {}, 0)
             : '<p class="muted">план недоступен</p>'));
       morph(document.getElementById('plan-issues'), (d.plan_issues||[]).length ? d.plan_issues.map(function(it){
         return '<div class="ritem '+it.severity+'"><div class="rt">'+esc(it.type)+'</div><div class="rm">'+esc(it.message)+'</div>'+(it.suggestion?'<div class="rs">↳ '+esc(it.suggestion)+'</div>':'')+'</div>';
@@ -666,7 +667,7 @@
       html += '</tbody></table>';
     });
     morph(out, html || '<p class="muted">нет данных</p>');
-    log('рекомендации пересчитаны ✓', 'ok');
+    log('рекомендации пересчитаны', 'info');
   }
 
   function fillSqlNodes(){
@@ -1190,7 +1191,7 @@
     morph(box, tpls.map(function(t){
       var vs = Object.keys(t.params).map(function(k){
         var cv = curParams[k];
-        return '<div class="mono" style="font-size:.84em">· '+esc(k)+' = <b>'+esc(t.params[k])+'</b>'+(cv != null && String(cv) !== String(t.params[k]) ? ' <span class="muted">(сейчас '+esc(cv)+')</span>' : ' <span style="color:var(--good)">(совпадает)</span>')+'</div>';
+        return '<div class="mono" style="font-size:.84em">· '+esc(k)+' = <b>'+esc(t.params[k])+'</b>'+(cv == null ? ' <span class="muted">(сейчас не задан)</span>' : (String(cv) !== String(t.params[k]) ? ' <span class="muted">(сейчас '+esc(cv)+')</span>' : ' <span style="color:var(--good)">(совпадает)</span>'))+'</div>';
       }).join('');
       return '<div class="ocard"><h3>'+esc(t.name)+'</h3><p class="muted">'+esc(t.description)+'</p>'
         +'<div style="max-height:180px;overflow:auto;margin:6px 0">'+vs+'</div>'
@@ -1336,7 +1337,7 @@
         var reps = s.replicas || [];
         html += reps.length ? '<table class="mono-t" style="margin-top:6px"><thead><tr><th>app</th><th>state</th><th>sync_state</th><th>лаг</th></tr></thead><tbody>'
           + reps.map(function(r){
-            return '<tr><td>'+esc(r.app||'')+'</td><td>'+esc(r.state||'')+'</td><td><b style="color:'+(r.sync_state==='sync'?'var(--good)':r.sync_state==='potential'?'var(--amber)':'var(--crit)')+'">'+esc(r.sync_state||'')+'</b></td><td>'+fb(r.lag_bytes||0)+'</td></tr>';
+            return '<tr><td>'+esc(r.app||'')+'</td><td>'+esc(r.state||'')+'</td><td><b style="color:'+(r.sync_state==='sync'||r.sync_state==='quorum'?'var(--good)':r.sync_state==='potential'?'var(--amber)':'var(--dim)')+'">'+esc(r.sync_state||'')+'</b></td><td>'+fb(r.lag_bytes||0)+'</td></tr>';
           }).join('') + '</tbody></table>'
           : '<p class="muted">реплик в pg_stat_replication нет</p>';
       } else {
@@ -1426,6 +1427,7 @@
       + '<span class="ai-reply">'+esc(reply||'')+'</span>';
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
+    return div;
   }
   function aiExplainPlan(){
     if(!lastPlan){ log('сначала выполни EXPLAIN', 'warn'); return; }
@@ -1457,19 +1459,17 @@
   }
   function aiAsk(q){ var inp = document.getElementById('ai-input'); if(inp) inp.value = q; aiSend(); }
   function aiAdvice(){
-    aiAdd('', 'собираю советы по тюнингу…');
+    var pending = aiAdd('', 'собираю советы по тюнингу…');
     postJSON('/api/assistant/config-advice', {}).then(function(j){
-      var last = document.querySelector('#ai-chat .ai-msg:last-child');
-      if(last && !last.querySelector('.ai-reply').textContent.trim()) last.remove();
+      if(pending) pending.remove();
       if(j && j.ok) aiAdd('', (j.data.tips||[]).join('\n'), 'config');
       else aiAdd('', 'ошибка: '+((j && j.error)||'нет ответа'));
     }).catch(function(e){ aiAdd('', 'ошибка: '+e.message); });
   }
   function aiDiagnose(){
-    aiAdd('', 'провожу диагностику…');
+    var pending = aiAdd('', 'провожу диагностику…');
     postJSON('/api/assistant/diagnose', {}).then(function(j){
-      var last = document.querySelector('#ai-chat .ai-msg:last-child');
-      if(last && !last.querySelector('.ai-reply').textContent.trim()) last.remove();
+      if(pending) pending.remove();
       if(!j || !j.ok){ aiAdd('', 'ошибка: '+((j && j.error)||'нет ответа')); return; }
       var d = j.data || {}, issues = d.issues || [];
       var lines = ['**Диагностика кластера**', '', '**'+d.summary+'**', ''];
