@@ -13,7 +13,7 @@
 ## 1. Установка
 
 ```bash
-tar xzf patroni-console-1.0.0.tar.gz && cd patroni-console
+unzip patroni-console.zip && cd patroni-console   # или из git: каталог patroni-console
 sudo ./deploy/install.sh
 ```
 
@@ -22,12 +22,37 @@ sudo ./deploy/install.sh
 `/var/lib/patroni-console` и unit `patroni-console.service`. Повторный запуск обновляет код,
 не трогая конфиг, секреты и базу.
 
+### Сервер без интернета
+
+Пакеты готовятся на любой машине с интернетом (Linux, macOS или WSL) и переносятся вместе с проектом:
+
+```bash
+./deploy/make-wheelhouse.sh ./wheelhouse 3.12      # 3.12 — версия Python на сервере
+# скопировать каталог проекта вместе с wheelhouse на сервер, затем на сервере:
+sudo WHEELS=./wheelhouse ./deploy/install.sh
+```
+
+В этом режиме pip не обращается в сеть: всё ставится из `wheelhouse`.
+
+### Windows
+
+Консоль работает в WSL2 (Ubuntu 22.04 или 24.04). Включите systemd в `/etc/wsl.conf`
+(`[boot]` и `systemd=true`), перезапустите WSL командой `wsl --shutdown` и ставьте как на обычный Linux.
+Консоль открывается в браузере Windows по адресу `https://localhost:8443/`. Если WSL не выходит
+в интернет (например, из-за VPN), подготовьте пакеты в Windows командой
+`python -m pip download` с теми же параметрами, что в `make-wheelhouse.sh`.
+
 ## 2. Сертификат
+
+Если сертификата нет, `install.sh` создаёт самоподписанный (`/etc/patroni-console/tls/console.crt`,
+на имя хоста, `localhost` и `127.0.0.1`), и консоль запускается сразу. Браузер предупредит
+о недоверенном сертификате. Для работы замените его сертификатом вашего УЦ:
 
 ```bash
 sudo cp console.crt console.key /etc/patroni-console/tls/
 sudo chown root:patroni-console /etc/patroni-console/tls/*
-sudo chmod 0640 /etc/patroni-console/tls/*
+sudo chmod 0640 /etc/patroni-console/tls/console.key
+sudo systemctl restart patroni-console
 ```
 
 Консоль сама обслуживает HTTPS (gunicorn, TLS 1.2+). Без сертификата она не стартует.

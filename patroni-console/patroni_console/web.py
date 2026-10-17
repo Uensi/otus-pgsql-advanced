@@ -212,6 +212,12 @@ def create_app(config, store=None, patroni_session_factory=None, etcd_session_fa
     def index():
         return send_from_directory(static_dir, 'index.html')
 
+    @app.get('/favicon.ico')
+    @require('public')
+    def favicon():
+        # браузеры запрашивают его сами, даже при <link rel="icon">: без маршрута в логе копятся 404
+        return send_from_directory(static_dir, 'favicon.svg', mimetype='image/svg+xml')
+
     @app.get('/static/<path:name>')
     @require('public')
     def static_files(name):

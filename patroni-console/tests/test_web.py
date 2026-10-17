@@ -96,3 +96,10 @@ def test_security_headers(app):
     r = app.test_client().get('/')
     assert "default-src 'self'" in r.headers['Content-Security-Policy']
     assert r.headers['X-Frame-Options'] == 'DENY'
+
+
+def test_favicon_served_without_login(app):
+    c = app.test_client()
+    for path in ('/favicon.ico', '/static/favicon.svg'):
+        r = c.get(path)
+        assert r.status_code == 200 and r.mimetype == 'image/svg+xml', path

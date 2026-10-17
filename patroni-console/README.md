@@ -67,6 +67,8 @@ rolling restart (реплики → switchover → бывший лидер) и r
 Ни Docker, ни веб-сервер, ни отдельная СУБД не нужны: консоль — один процесс, а её состояние
 хранится в одном файле SQLite.
 
+Ставится и на сервер без интернета (пакеты готовит `deploy/make-wheelhouse.sh`), и в WSL2 на Windows.
+
 ## Быстрый старт
 
 ```bash
@@ -85,7 +87,7 @@ sudo systemctl enable --now patroni-console    # https://<сервер>:8443/
 
 | Набор | Что | Результат |
 |---|---|---|
-| `tests/` | модульные и API-тесты на имитаторе кластера | 101 из 101, см. [docs/TEST-REPORT.md](docs/TEST-REPORT.md) |
+| `tests/` | модульные и API-тесты на имитаторе кластера | 102 из 102, см. [docs/TEST-REPORT.md](docs/TEST-REPORT.md) |
 | `itest/` | живой кластер: 3 × etcd 3.6.4, 3 × Patroni 4.0.4 + PostgreSQL 16 | 12 из 12 |
 
 Живые сценарии: switchover, изменение и откат конфига, параметр с рестартом и rolling restart, пауза,
@@ -118,4 +120,4 @@ docs/          установка, регламент DBA, безопаснос�
 itest/         стенд etcd + Patroni + PostgreSQL и живые тесты
 ```
 
-Версия 1.0.0, изменения перечислены в [CHANGELOG.md](CHANGELOG.md).
+Версия 1.0.1, изменения перечислены в [CHANGELOG.md](CHANGELOG.md).

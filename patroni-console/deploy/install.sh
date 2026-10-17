@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Установка Patroni Console на Linux с systemd. Запускать от root из распакованного каталога.
 # Повторный запуск обновляет код и зависимости, не трогая конфиг, ключи и базу.
+# Без интернета: WHEELS=<каталог из deploy/make-wheelhouse.sh> ./deploy/install.sh
 set -euo pipefail
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 PREFIX=/opt/patroni-console
@@ -21,8 +22,14 @@ cp -r "$SRC/patroni_console" "$SRC/pyproject.toml" "$SRC/README.md" "$PREFIX/src
 rm -rf "$PREFIX/src" && mv "$PREFIX/src.new" "$PREFIX/src"
 cp -r "$SRC/deploy" "$SRC/docs" "$PREFIX/"
 [ -d "$PREFIX/venv" ] || "$PY" -m venv "$PREFIX/venv"
-"$PREFIX/venv/bin/pip" install -q --upgrade pip
-"$PREFIX/venv/bin/pip" install -q "$PREFIX/src"
+if [ -n "${WHEELS:-}" ]; then
+  WHEELS=$(cd "$WHEELS" && pwd)
+  "$PREFIX/venv/bin/pip" install -q --no-index --find-links "$WHEELS" --upgrade pip || true
+  "$PREFIX/venv/bin/pip" install -q --no-index --find-links "$WHEELS" "$PREFIX/src"
+else
+  "$PREFIX/venv/bin/pip" install -q --upgrade pip
+  "$PREFIX/venv/bin/pip" install -q "$PREFIX/src"
+fi
 
 if [ ! -f "$ETC/config.yaml" ]; then
   install -m 0640 -o root -g patroni-console "$SRC/config.example.yaml" "$ETC/config.yaml"
@@ -44,12 +51,22 @@ ENV
   echo "создан $ETC/env (секреты) — впишите пароли"
 fi
 install -d -m 0750 -o root -g patroni-console "$ETC/tls"
+# самоподписанный сертификат, чтобы консоль запустилась сразу; замените его на сертификат вашего УЦ
+if [ ! -f "$ETC/tls/console.crt" ] && command -v openssl >/dev/null; then
+  HOST=$(hostname -f 2>/dev/null || hostname)
+  openssl req -x509 -newkey rsa:3072 -sha256 -days 825 -nodes -subj "/CN=$HOST" \
+    -addext "subjectAltName=DNS:$HOST,DNS:localhost,IP:127.0.0.1" \
+    -keyout "$ETC/tls/console.key" -out "$ETC/tls/console.crt" 2>/dev/null
+  chown root:patroni-console "$ETC/tls/console.key" "$ETC/tls/console.crt"
+  chmod 0640 "$ETC/tls/console.key"; chmod 0644 "$ETC/tls/console.crt"
+  echo "создан самоподписанный сертификат для $HOST (замените на сертификат вашего УЦ)"
+fi
 
 install -m 0644 "$PREFIX/deploy/patroni-console.service" /etc/systemd/system/patroni-console.service
 systemctl daemon-reload
 echo
 echo "Дальше:"
-echo "  1. положите сертификат и ключ в $ETC/tls/ (ключ: chown root:patroni-console, chmod 0640)"
+echo "  1. при необходимости замените сертификат и ключ в $ETC/tls/ (ключ: chown root:patroni-console, chmod 0640)"
 echo "  2. заполните $ETC/config.yaml и $ETC/env; хеш пароля: $PREFIX/venv/bin/patroni-console-hashpw"
 echo "  3. проверьте конфиг и связь с кластерами:"
 echo "     sudo -u patroni-console bash -c 'set -a; . $ETC/env; $PREFIX/venv/bin/patroni-console-check $ETC/config.yaml'"
