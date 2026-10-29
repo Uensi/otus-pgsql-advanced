@@ -1,0 +1,15 @@
+# Пример reverse-proxy с HTTPS. В config.yaml: web.cookie_secure: true, web.trust_proxy: true
+server {
+    listen 443 ssl http2;
+    server_name console.example.local;
+    ssl_certificate     /etc/nginx/tls/console.crt;
+    ssl_certificate_key /etc/nginx/tls/console.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 130s;
+    }
+}

@@ -1,0 +1,10 @@
+.venv
+.git
+.claude
+__pycache__
+*.pyc
+tests
+*.jsonl
+config.yaml
+config.yaml_test
+.demo-data

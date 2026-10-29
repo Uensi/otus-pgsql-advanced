@@ -1,0 +1,2 @@
+# WSGI-сервер для продакшена (вместо dev-сервера Flask). Запуск: gunicorn -c deploy/gunicorn.conf.py app:app
+gunicorn==23.0.0

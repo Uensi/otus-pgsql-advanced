@@ -1,0 +1,76 @@
+# =============================================================================
+#  Patroni Console — конфигурация ПРОДАКШЕНА
+#
+#  1. Скопируйте:        cp config.prod.example.yaml config.yaml && chmod 600 config.yaml
+#  2. Заполните блок «РЕАЛЬНЫЕ КЛАСТЕРЫ» ниже (остальное — по необходимости).
+#  3. Проверьте до запуска:  python3 tools/check_config.py config.yaml
+#     Утилита опросит каждый узел и скажет, что не так: REST Patroni, имена,
+#     пароль/pg_hba для PostgreSQL. Запускайте её С СЕРВЕРА КОНСОЛИ.
+#  4. Запустите консоль (systemd / docker compose, см. README → «Продакшен»).
+# =============================================================================
+
+web:
+  host: 0.0.0.0
+  port: 5000
+  # Обязательно в проде: python3 -c "import secrets; print(secrets.token_hex(32))"
+  secret: "ЗАМЕНИТЕ-на-случайную-строку-64-символа"
+  cookie_secure: false        # true, если консоль открывают по HTTPS
+  trust_proxy: false          # true — только за своим nginx
+
+# Учётная запись, под которой КОНСОЛЬ подключается к PostgreSQL на узлах.
+# Нужна для экранов «Базы данных», DBA, «Риски», ASH, анализатора, SQL-консоли.
+# Права: суперпользователь или pg_monitor + pg_read_all_settings (для части экранов — superuser).
+# В pg_hba.conf каждого узла (в Patroni — postgresql.pg_hba) нужна строка для IP консоли:
+#     host  all  postgres  <IP сервера консоли>/32  scram-sha-256
+postgres:
+  user: postgres
+  password: "ПАРОЛЬ"
+  database: postgres
+  port: 5432
+
+agents:
+  key: "ОБЩИЙ-КЛЮЧ-АГЕНТОВ"   # тот же ключ — в PATRONI_CONSOLE_KEY на узлах
+
+# █████████████████████████████████████████████████████████████████████████████
+# ██  РЕАЛЬНЫЕ КЛАСТЕРЫ — ЗАПОЛНИТЬ                                          ██
+# █████████████████████████████████████████████████████████████████████████████
+#
+#  Для каждого кластера Patroni — блок ниже. Правила:
+#   • name кластера — любое понятное имя (видно в шапке консоли).
+#   • nodes[].name — ИМЯ ЧЛЕНА КЛАСТЕРА В PATRONI (параметр name в patroni.yml,
+#     столбец Member в `patronictl list`). Если не совпадёт — консоль сопоставит
+#     узлы по адресу, но check_config.py подскажет исправить.
+#   • nodes[].host — IP/имя узла, nodes[].port — порт REST API Patroni (обычно 8008,
+#     restapi.listen в patroni.yml). НЕ порт PostgreSQL.
+#   • postgres: внутри кластера — если у кластера свой пароль/порт PostgreSQL
+#     (иначе берётся общий блок postgres выше).
+#   • Первый кластер в списке открывается при старте; переключение — «Мониторинг →
+#     Все кластеры» или список в шапке (для admin).
+#
+clusters:
+  - name: main-cluster                       # ← имя кластера
+    nodes:
+      - { name: pg-node1, host: 10.0.0.11, port: 8008 }   # ← name из `patronictl list`, IP узла
+      - { name: pg-node2, host: 10.0.0.12, port: 8008 }
+      - { name: pg-node3, host: 10.0.0.13, port: 8008 }
+
+  - name: reporting-cluster                  # ← второй кластер (удалите блок, если не нужен)
+    postgres: { user: postgres, password: "ДРУГОЙ-ПАРОЛЬ", port: 5432 }
+    nodes:
+      - { name: rep-node1, host: 10.0.1.21, port: 8008 }
+      - { name: rep-node2, host: 10.0.1.22, port: 8008 }
+#
+# █████████████████████████████████████████████████████████████████████████████
+
+users:                        # viewer — просмотр, dba — обслуживание, admin — всё
+  # Пароль лучше хранить хешем:
+  #   python3 -c "from werkzeug.security import generate_password_hash as h; print(h('пароль'))"
+  - { name: admin,  password: "ЗАМЕНИТЕ", role: admin }
+  - { name: dba,    password: "ЗАМЕНИТЕ", role: dba }
+  - { name: viewer, password: "ЗАМЕНИТЕ", role: viewer }
+
+patroni:
+  config_path: /etc/patroni/patroni.yml
+
+# ldap:                       # вход доменными учётными записями — см. config.example.yaml
+#   enabled: true

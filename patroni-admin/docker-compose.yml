@@ -1,0 +1,16 @@
+# Быстрый запуск: docker compose up -d   →   http://localhost:5000
+# Демо без кластеров: PATRONI_CONSOLE_DEMO=1 docker compose up   (вход demo / demo, конфиг config.demo.yaml)
+services:
+  console:
+    build: .
+    image: patroni-console:latest
+    restart: unless-stopped
+    ports: ["5000:5000"]
+    environment:
+      PATRONI_WEB_CONFIG: /app/config.yaml
+      PATRONI_CONSOLE_DEMO: ${PATRONI_CONSOLE_DEMO:-}
+    volumes:
+      - ./${CONSOLE_CONFIG:-config.yaml}:/app/config.yaml:ro
+      - console-data:/app/data
+volumes:
+  console-data:

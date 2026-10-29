@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-c", "import os; os.environ['PATRONI_CONSOLE_DEMO']='1'; os.environ['PATRONI_WEB_CONFIG']='config.demo.yaml'; os.environ['PATRONI_CONSOLE_DATA']='.demo-data'; import app; app.app.run(host='127.0.0.1', port=int(os.environ.get('PORT', 5000)))"],
+      "port": 5000
+    }
+  ]
+}
