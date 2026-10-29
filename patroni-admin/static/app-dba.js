@@ -205,6 +205,35 @@
       }, {okText:'Запустить проверку'});
   }
 
+  /* ================================================================ ПОДКЛЮЧЕНИЕ К УЗЛАМ */
+  function fetchConn(){
+    if(window.__inLogin) return Promise.resolve();
+    return getJSON('/api/diag/connectivity', true).then(function(j){
+      if(!j || !j.ok) return;
+      var d = j.data;
+      window.__connItems = d.issues || [];
+      var box = document.getElementById('conn-diag'); if(!box) return;
+      if(!(d.issues || []).length){ morph(box, ''); return; }
+      var bad = d.issues.some(function(i){ return i.level === 'bad'; });
+      var h = '<details class="panel conn-diag"'+(bad?' open':'')+'><summary><b>Подключение консоли к узлам</b> '
+        + '<span class="cnt '+(bad?'warn':'ok')+'">'+d.issues.length+' '+(bad?'проблем':'замечаний')+'</span>'
+        + ' <span class="muted small">PostgreSQL: пользователь '+esc(d.pg_user)+', порт '+esc(d.pg_port)+', база '+esc(d.pg_db)+'</span></summary>'
+        + '<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Узел (config.yaml)</th><th>Адрес</th><th>REST Patroni</th><th>Имя в Patroni</th><th>PostgreSQL</th><th>Агент</th></tr></thead><tbody>'
+        + d.nodes.map(function(n){
+            return '<tr data-key="cd-'+esc(n.config_name)+'"><td><b>'+esc(n.config_name)+'</b></td><td class="mono">'+esc(n.host)+':'+esc(n.rest_port)+'</td>'
+              + '<td>'+(n.rest_ok ? '<span class="st-ok">доступен</span>' : '<span class="st-bad" title="'+esc(n.rest_error||'')+'">нет</span>')+'</td>'
+              + '<td class="'+(n.member_name && n.member_name !== n.config_name ? 'lag-warn' : '')+'">'+esc(n.member_name || '—')+'</td>'
+              + '<td>'+(n.pg_ok ? '<span class="st-ok">ок '+esc(n.pg_version||'')+'</span>' : '<span class="st-bad">нет</span>')+'</td>'
+              + '<td>'+(n.agent_online ? '<span class="st-ok">на связи</span>' : '<span class="muted">—</span>')+'</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        + '<ul class="issue-list">'+d.issues.map(function(i){ return '<li class="'+i.level+'">'+esc(i.text)+'<div class="muted small">'+esc(i.fix)+'</div></li>'; }).join('')+'</ul>'
+        + '<p class="muted small">Ту же проверку с сервера консоли: <span class="mono">python3 tools/check_config.py config.yaml</span></p></details>';
+      morph(box, h);
+    }).catch(function(){});
+  }
+  setTimeout(fetchConn, 800);
+  setInterval(function(){ if(!document.hidden && (window.activeScreen === 'cluster' || (window.__connItems||[]).length)) fetchConn(); }, 60000);
+
   /* ================================================================ ASH */
   var ashChart = null;
   var WAIT_COLORS = {CPU:'#3f9b68', IO:'#3d7ab5', Lock:'#cc4a3c', LWLock:'#7b6bb5', IdleTx:'#c48a1d', Client:'#8a95a3',

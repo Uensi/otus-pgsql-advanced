@@ -140,6 +140,50 @@ class Routes(unittest.TestCase):
         self.assertTrue({'risk_xid', 'risk_backup', 'risk_archive', 'risk_slots', 'risk_replay'} <= ids)
 
 
+class NodeResolution(unittest.TestCase):
+    """На проде имена узлов в config.yaml могут не совпадать с именами членов Patroni."""
+    def test_find_by_config_name_member_name_and_host(self):
+        first = appmod.NODES[0]
+        self.assertIs(appmod.find_node(first['name']), first)
+        appmod._MEMBER_HOST['patroni-real-name'] = first['host']
+        try:
+            self.assertIs(appmod.find_node('patroni-real-name'), first)
+        finally:
+            appmod._MEMBER_HOST.pop('patroni-real-name', None)
+        self.assertIs(appmod.find_node(first['host']), first)
+        self.assertIsNone(appmod.find_node('нет-такого'))
+        self.assertIsNone(appmod.find_node(''))
+
+    def test_restart_resolves_patroni_member_name(self):
+        c = appmod.app.test_client()
+        c.post('/api/auth/login', json={'user': 'admin', 'password': 'test-pass'})
+        first = appmod.NODES[0]
+        appmod._MEMBER_HOST['member-x'] = first['host']
+        try:
+            j = c.post('/api/ops/reload', json={'node': 'member-x'}).get_json()
+            self.assertNotEqual(j.get('error'), 'Нода не найдена')
+        finally:
+            appmod._MEMBER_HOST.pop('member-x', None)
+
+    def test_human_errors(self):
+        h = appmod._human_net_error
+        self.assertIn('таймаут', h('connection to server at "x", port 5432 failed: timeout expired'))
+        self.assertIn('неверный пароль', h('FATAL:  password authentication failed for user "postgres"'))
+        self.assertIn('pg_hba', h('FATAL:  no pg_hba.conf entry for host "10.1.1.1", user "postgres"'))
+        self.assertIn('отклонено', h('Connection refused'))
+
+    def test_pg_error_is_remembered_and_shown(self):
+        self.assertIsNone(appmod.pg_conn('127.0.0.1', port=1))
+        self.assertTrue(appmod.pg_error('127.0.0.1', port=1))
+        self.assertIn('Не удалось подключиться к PostgreSQL', appmod.pg_fail_msg())
+
+    def test_connectivity_report(self):
+        d = appmod.connectivity()
+        self.assertEqual(len(d['nodes']), len(appmod.NODES))
+        self.assertEqual(d['level'], 'bad')            # тестовые узлы недоступны
+        self.assertTrue(any('REST API Patroni' in i['text'] for i in d['issues']))
+
+
 class DemoData(unittest.TestCase):
     def test_demo_log_parses(self):
         r = demo_dba.log_report('pg-node1')

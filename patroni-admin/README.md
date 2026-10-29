@@ -147,6 +147,21 @@ python app.py                                                 # dev-сервер
 
 ## Продакшен
 
+### Конфигурация с реальными кластерами
+
+```bash
+cp config.prod.example.yaml config.yaml && chmod 600 config.yaml
+# заполните блок «РЕАЛЬНЫЕ КЛАСТЕРЫ»: имена узлов = Member из `patronictl list`, host, порт REST API (8008)
+python3 tools/check_config.py config.yaml      # запускать на сервере консоли
+```
+
+`check_config.py` для каждого узла проверяет REST API Patroni, совпадение имён с членами
+кластера, подключение консоли к PostgreSQL (с понятной причиной: неверный пароль, нет строки
+в `pg_hba.conf` для IP консоли, таймаут) и агента. Та же проверка — блок «Подключение консоли
+к узлам» на экране «Кластер» и `GET /api/diag/connectivity`. У кластера может быть свой блок
+`postgres:` (пароль/порт), если он отличается от общего.
+
+
 **Docker** (рекомендуется):
 
 ```bash

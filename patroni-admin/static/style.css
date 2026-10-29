@@ -505,3 +505,9 @@ details.idx-cat .table-wrap{margin-top:8px}
 .pre-list{list-style:none; display:grid; gap:8px; font-size:.92em}
 ol.plan{margin:6px 0 0 22px; display:grid; gap:6px; font-size:.92em; max-width:110ch}
 .alert.critical b, .alert.warning b{color:inherit}
+
+/* Диагностика подключения консоли к узлам */
+.conn-diag{border-left:6px solid var(--crit)}
+.conn-diag > summary{cursor:pointer; list-style:none; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.conn-diag > summary::-webkit-details-marker{display:none}
+.conn-diag .issue-list li .muted{margin-top:2px}

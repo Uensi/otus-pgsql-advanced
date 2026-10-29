@@ -46,7 +46,7 @@ def nodes():
 
 
 def node_by_name(name):
-    return next((n for n in nodes() if n['name'] == name), None)
+    return app().find_node(name)
 
 
 def leader():

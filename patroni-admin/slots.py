@@ -48,7 +48,7 @@ def slots_drop():
     A = _app()
     b = request.json or {}; node = b.get('node'); name = b.get('name', '')
     if not _IDENT.match(name or ''): return jsonify({'ok': False, 'error': 'недопустимое имя слота'})
-    t = next((n for n in A.NODES if n['name'] == node), None)
+    t = A.find_node(node)
     if not t: return jsonify({'ok': False, 'error': 'нода не найдена'})
     c = A.pg_conn(t['host'])
     if not c: return jsonify({'ok': False, 'error': 'нет подключения'})

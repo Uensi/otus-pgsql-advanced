@@ -268,7 +268,8 @@ def sync_standby():
         return {'ok': False, 'error': 'лидер не найден'}
     c = A.pg_conn(ln['host'])
     if not c:
-        return {'ok': False, 'error': 'нет подключения к лидеру'}
+        why = A.pg_error(ln['host']) or 'причина неизвестна'
+        return {'ok': False, 'error': f"консоль не подключилась к PostgreSQL лидера {ln['host']}:{A.PG_PORT} — {why}"}
     try:
         ssn = A.q(c, "SHOW synchronous_standby_names")
         ssn = ssn[0]['synchronous_standby_names'] if ssn else ''

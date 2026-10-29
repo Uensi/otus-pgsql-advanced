@@ -12,6 +12,7 @@
 # pgnode2 = 127.0.0.3; PostgreSQL :25432, REST API Patroni :8008.
 set -euo pipefail
 ST=${PCTEST_DIR:-$HOME/pctest}
+PCTEST_SRC=${PCTEST_SRC:-$(cd "$(dirname "$0")/../.." && pwd)}
 PGBIN=${PGBIN:-$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)}
 PY=${PYTHON:-python3}
 export PYTHONPATH="$ST/pylibs"

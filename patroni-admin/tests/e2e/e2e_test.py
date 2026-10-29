@@ -28,6 +28,7 @@ PGBIN = os.environ.get('PGBIN', '/usr/lib/postgresql/16/bin')
 HOSTS = {'pgnode1': '127.0.0.2', 'pgnode2': '127.0.0.3'}
 PGPW = 'pctest'
 RESULTS = []
+RUN = time.strftime('%H%M%S')   # метки строк этого прогона: тест не зависит от данных прошлых запусков
 
 
 # ---------------------------------------------------------------- инфраструктура
@@ -238,7 +239,7 @@ def t_backup_full(con):
 def t_backup_delta(con):
     node = replica(con)
     s = pg(leader(con), 'shop')
-    run(s, "INSERT INTO orders(customer_id, batch, amount) SELECT 1, 'pre-delta', g FROM generate_series(1,5000) g"); s.close()
+    run(s, f"INSERT INTO orders(customer_id, batch, amount) SELECT 1, 'pre-delta-' || '{RUN}', g FROM generate_series(1,5000) g"); s.close()
     # бэкап с реплики начинается с точки рестарта; в продакшене КТ лидера идёт раз в checkpoint_timeout
     c = pg(leader(con)); run(c, 'CHECKPOINT'); c.close()
     time.sleep(3)
@@ -259,10 +260,10 @@ def t_backup_delta(con):
 def t_pitr(con):
     node = replica(con)
     s = pg(leader(con), 'shop')
-    run(s, "INSERT INTO orders(customer_id, batch, amount) SELECT 2, 'before-T', g FROM generate_series(1,777) g")
+    run(s, f"INSERT INTO orders(customer_id, batch, amount) SELECT 2, 'before-T-' || '{RUN}', g FROM generate_series(1,777) g")
     t = one(s, 'SELECT clock_timestamp()::text')
     time.sleep(2)
-    run(s, "INSERT INTO orders(customer_id, batch, amount) SELECT 3, 'after-T', g FROM generate_series(1,333) g")
+    run(s, f"INSERT INTO orders(customer_id, batch, amount) SELECT 3, 'after-T-' || '{RUN}', g FROM generate_series(1,333) g")
     total_now = one(s, 'SELECT count(*) FROM orders')
     s.close()
     seg = wait_archived(pg(leader(con)))
@@ -275,8 +276,8 @@ def t_pitr(con):
     try:
         start_copy(path, 25701)
         c = psycopg2.connect(host='127.0.0.1', port=25701, user='postgres', password=PGPW, dbname='shop'); c.autocommit = True
-        before = one(c, "SELECT count(*) FROM orders WHERE batch='before-T'")
-        after = one(c, "SELECT count(*) FROM orders WHERE batch='after-T'")
+        before = one(c, f"SELECT count(*) FROM orders WHERE batch='before-T-' || '{RUN}'")
+        after = one(c, f"SELECT count(*) FROM orders WHERE batch='after-T-' || '{RUN}'")
         total = one(c, 'SELECT count(*) FROM orders')
         am = one(c, "SELECT current_setting('archive_mode')")
         c.close()
@@ -299,7 +300,7 @@ def t_restore(con):
     try:
         start_copy(path, 25702)
         c = psycopg2.connect(host='127.0.0.1', port=25702, user='postgres', password=PGPW, dbname='shop'); c.autocommit = True
-        n = one(c, "SELECT count(*) FROM orders WHERE batch='pre-delta'")
+        n = one(c, f"SELECT count(*) FROM orders WHERE batch='pre-delta-' || '{RUN}'")
         c.close()
         assert n == 5000, f'pre-delta={n}'
         return f'{name}: база открылась, данные дельта-бэкапа на месте (5000 строк)'

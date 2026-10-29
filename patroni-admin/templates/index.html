@@ -174,10 +174,11 @@
 
   <section class="screen active" data-screen="cluster">
     <div id="cluster-health" aria-live="polite"><div class="health"><div class="skeleton"><i></i></div></div></div>
+    <div id="conn-diag"></div>
     <div class="panel reveal">
       <div class="panel-head"><h2>Узлы кластера</h2><span class="panel-meta" id="cluster-updated"></span></div>
       <div class="table-wrap"><table id="nodes-table">
-        <thead><tr><th>Узел</th><th>Адрес Patroni</th><th>Роль</th><th>Состояние</th>
+        <thead><tr><th>Узел</th><th>Адрес PostgreSQL</th><th>Роль</th><th>Состояние</th>
           <th><abbr data-hint="Timeline — номер «линии времени» WAL. Растёт на 1 при каждом failover/switchover. У всех узлов должен совпадать">TL</abbr></th>
           <th><abbr data-hint="Received LSN — до какой позиции WAL реплика получила журнал от лидера. У лидера — текущая позиция записи">Получено (LSN)</abbr></th>
           <th><abbr data-hint="Replayed LSN — до какой позиции WAL реплика применила изменения. Разница с «получено» — очередь применения">Применено (LSN)</abbr></th>

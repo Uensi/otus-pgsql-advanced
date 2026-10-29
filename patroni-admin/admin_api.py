@@ -131,8 +131,8 @@ def ts_mod():
 def cfg_diff():
     A = _app()
     a = request.args.get('a'); b = request.args.get('b')
-    na = next((n for n in A.NODES if n['name'] == a), None)
-    nb = next((n for n in A.NODES if n['name'] == b), None)
+    na = A.find_node(a)
+    nb = A.find_node(b)
     if not na or not nb: return jsonify({'ok': False, 'error': 'выберите две ноды'})
     def settings(host):
         c = A.pg_conn(host)
@@ -178,8 +178,8 @@ def patroni_diff():
     A = _app(); ag = A.agent_api
     if ag is None: return jsonify({'ok': False, 'error': 'агент недоступен'})
     a = request.args.get('a'); b = request.args.get('b')
-    na = next((n for n in A.NODES if n['name'] == a), None)
-    nb = next((n for n in A.NODES if n['name'] == b), None)
+    na = A.find_node(a)
+    nb = A.find_node(b)
     if not na or not nb: return jsonify({'ok': False, 'error': 'выберите две ноды'})
     ca, erra = ag.agent_read_config(a)
     cb, errb = ag.agent_read_config(b)

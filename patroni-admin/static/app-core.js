@@ -370,6 +370,8 @@ function renderHealth(err){
   if(clusterData.pause === true) add('warn', 'Кластер на паузе: автоматический failover отключён.');
   /* риски потери данных (wraparound, бэкапы, слоты, лаг во времени) — из /api/risk/summary */
   (window.__riskItems || []).forEach(function(i){ if(i.level === 'bad' || i.level === 'warn') add(i.level, i.text); });
+  /* консоль не достаёт до узлов (REST Patroni / PostgreSQL) — из /api/diag/connectivity */
+  (window.__connItems || []).forEach(function(i){ if(i.level === 'bad') add('bad', i.text); });
   var healthyReps = reps.filter(function(x){ return x.level === 'ok'; }).length;
   var maxLag = 0; reps.forEach(function(x){ if(x.lag > maxLag) maxLag = x.lag; });
   var title = level === 'ok' ? 'Кластер исправен' : (level === 'warn' ? 'Требует внимания' : 'Авария');

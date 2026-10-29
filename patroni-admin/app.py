@@ -44,6 +44,7 @@ def _load_clusters():
     return [CONFIG['cluster']]
 CLUSTERS = _load_clusters()
 CLUSTER_NAME = CLUSTERS[0]['name']; NODES = CLUSTERS[0]['nodes']
+CURRENT_CLUSTER = CLUSTERS[0]
 
 EXECUTOR = ThreadPoolExecutor(max_workers=10)
 LAG_HISTORY = deque(maxlen=200); LSN_CACHE = {}
@@ -80,12 +81,70 @@ def patroni_request(node, method='GET', path='/', **kw):
     except Exception as e:
         return {'ok': False, 'status_code': 0, 'data': {}, 'error': str(e)}
 
+PG_ERRORS = {}            # host -> (ts, текст ошибки последнего подключения)
+_PG_BACKOFF_S = 10        # после неудачи не пробуем этот хост N секунд: запросы не ждут таймаут
+
+def _pg_defaults():
+    """Параметры подключения: блок postgres кластера (если задан) поверх общего postgres."""
+    o = (CURRENT_CLUSTER or {}).get('postgres') or {}
+    return (o.get('user', PG_USER), o.get('password', PG_PASS), o.get('database', PG_DB), o.get('port', PG_PORT))
+
 def pg_conn(host, database=None, port=None, user=None, password=None):
+    """Подключение к PostgreSQL узла. Ошибка не пробрасывается, но запоминается
+    (pg_error(host)) — экраны и диагностика показывают реальную причину."""
+    d_user, d_pass, d_db, d_port = _pg_defaults()
+    port = port or d_port; database = database or d_db; user = user or d_user; password = password or d_pass
+    key = f"{host}:{port}/{database}"
+    last = PG_ERRORS.get(key)
+    if last and time.time() - last[0] < _PG_BACKOFF_S and 'timeout' in last[1].lower():
+        return None
     try:
-        c = psycopg2.connect(host=host, port=port or PG_PORT, user=user or PG_USER,
-                             password=password or PG_PASS, database=database or PG_DB, connect_timeout=5)
-        c.autocommit = True; return c
-    except Exception: return None
+        c = psycopg2.connect(host=host, port=port, user=user, password=password, database=database,
+                             connect_timeout=5, application_name='patroni-console')
+        c.autocommit = True
+        PG_ERRORS.pop(key, None)
+        return c
+    except Exception as e:
+        msg = str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__
+        PG_ERRORS[key] = (time.time(), msg[:300])
+        return None
+
+def pg_fail_msg():
+    """Сообщение для экрана: последняя ошибка подключения к PostgreSQL с причиной."""
+    if not PG_ERRORS:
+        return 'Не удалось подключиться к PostgreSQL'
+    key, (ts, msg) = max(PG_ERRORS.items(), key=lambda kv: kv[1][0])
+    return f'Не удалось подключиться к PostgreSQL {key.split("/")[0]}: {msg}'
+
+def pg_error(host, database=None, port=None):
+    """Текст последней ошибки подключения к host (или None)."""
+    d_user, d_pass, d_db, d_port = _pg_defaults()
+    e = PG_ERRORS.get(f"{host}:{port or d_port}/{database or d_db}")
+    return e[1] if e else None
+
+_MEMBER_HOST = {}         # имя члена Patroni -> host (из /cluster): имена в config.yaml могут отличаться
+
+def find_node(name):
+    """Узел из config.yaml по имени — из конфига ИЛИ из Patroni (сопоставление по host)."""
+    if not name:
+        return None
+    for n in NODES:
+        if n['name'] == name:
+            return n
+    host = _MEMBER_HOST.get(name)
+    if host:
+        for n in NODES:
+            if n['host'] == host:
+                return n
+    for n in NODES:
+        if n['host'] == name:
+            return n
+    return None
+
+def _remember_members(members):
+    for m in members or []:
+        if m.get('name') and m.get('host'):
+            _MEMBER_HOST[m['name']] = m['host']
 
 def leader_node():
     for node in NODES:
@@ -353,17 +412,29 @@ def collect_lsn_lag(force=False):
                 return _LSN_CACHE_LAST['value']
     snap = {'ts': now, 'nodes': {}}
     futs = {EXECUTOR.submit(patroni_request, n, 'GET', '/patroni'): n for n in NODES}
+    got = []
     for f in as_completed(futs):
         n = futs[f]; r = f.result()
         if not r['ok']: continue
-        d = r['data']; name = n['name']; xl = d.get('xlog', {}) or {}
-        LSN_CACHE[name] = {'role':d.get('role','unknown'),'received':xl.get('received_location'),'replayed':xl.get('replayed_location'),'location':xl.get('location'),'timeline':xl.get('timeline'),'lag':0,'state':d.get('state','unknown'),'pending_restart':d.get('pending_restart',False),'pending_restart_reason':d.get('pending_restart_reason',''),'delay':get_node_delay(n['name'], n['host'])}
+        d = r['data']
+        # имя члена Patroni может отличаться от имени узла в config.yaml — ключом служит имя из Patroni
+        name = ((d.get('patroni') or {}).get('name')) or d.get('name') or n['name']
+        if name != n['name']:
+            _MEMBER_HOST[name] = n['host']
+        got.append((name, n, d))
+    delays = {name: EXECUTOR.submit(get_node_delay, name, n['host']) for name, n, d in got}
+    for name, n, d in got:
+        xl = d.get('xlog', {}) or {}
+        try: delay = delays[name].result(timeout=8)
+        except Exception: delay = '?'
+        LSN_CACHE[name] = {'role':d.get('role','unknown'),'received':xl.get('received_location'),'replayed':xl.get('replayed_location'),'location':xl.get('location'),'timeline':xl.get('timeline'),'lag':0,'state':d.get('state','unknown'),'pending_restart':d.get('pending_restart',False),'pending_restart_reason':d.get('pending_restart_reason',''),'delay':delay,'config_name':n['name']}
     cf = {EXECUTOR.submit(patroni_request, n, 'GET', '/cluster'): n for n in NODES}
     cd = None
     for f in as_completed(cf):
         r = f.result()
         if r['ok']: cd = r['data']; break
     if cd and 'members' in cd:
+        _remember_members(cd['members'])
         for m in cd['members']:
             nm = m.get('name')
             if nm and nm in LSN_CACHE:
@@ -380,6 +451,7 @@ def cluster_state():
     for f in as_completed(futs):
         r = f.result()
         if r['ok']:
+            _remember_members((r['data'] or {}).get('members'))
             collect_lsn_lag(); return r['data']
     st = []
     f2 = {EXECUTOR.submit(patroni_request, n, 'GET', '/patroni'): n for n in NODES}
@@ -433,8 +505,9 @@ def api_switchover():
 def api_failover():
     b = request.json or {}; c = b.get('candidate')
     old = (b.get('old_leader') or '').strip()
+    old_node = find_node(old) if old else None
     for n in NODES:
-        if old and n['name'] == old: continue
+        if old_node is not None and n is old_node: continue
         r = patroni_request(n, 'POST', '/failover', json={'candidate': c, 'leader': old} if (c or old) else {})
         if r['ok']:
             _notify_failover('failover', old or 'неизвестен', c or 'авто')
@@ -461,7 +534,7 @@ def _notify_failover(kind, old_leader, new_leader):
 @bp_repl.route('/api/reinitialize', methods=['POST'])
 def api_reinit():
     b = request.json or {}; nm = b.get('node')
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     return jsonify(patroni_request(t, 'POST', '/reinitialize', json={'force': b.get('force', False)}))
 
@@ -506,7 +579,7 @@ def api_size():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             cur = q(c, "SELECT datname, pg_database_size(datname) AS size FROM pg_database WHERE datistemplate=false ORDER BY 2 DESC")
             SIZE_HISTORY.append({'ts': time.time(), 'databases': {d['datname']: d['size'] for d in cur}})
@@ -521,7 +594,7 @@ def api_databases():
         ln = leader_node()
         if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
         c = pg_conn(ln['host'])
-        if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+        if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
         try:
             rows = q(c, "SELECT datname FROM pg_database WHERE datistemplate=false AND datname NOT IN ('template0','template1') ORDER BY datname")
             names = [r['datname'] for r in rows]
@@ -537,7 +610,7 @@ def api_db_overview():
         ln = leader_node()
         if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
         c = pg_conn(ln['host'])
-        if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+        if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
         try:
             rows = q(c, "SELECT d.datname, pg_database_size(d.datname) AS size, "
                         "s.numbackends AS connections, s.xact_commit, s.xact_rollback, "
@@ -620,7 +693,7 @@ def api_analyze():
         ln = leader_node()
         if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
         c = pg_conn(ln['host'])
-        if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+        if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
         plan = None; plan_error = None
         try:
             cur = c.cursor(); cur.execute("EXPLAIN (FORMAT JSON) " + _deparam(cleaned)); plan = cur.fetchone()[0]; cur.close()
@@ -648,7 +721,7 @@ def api_slow():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             has = q(c, "SELECT 1 FROM pg_extension WHERE extname='pg_stat_statements'")
             if not has: return {'ok': False, 'error': 'pg_stat_statements не установлен'}
@@ -671,7 +744,7 @@ def api_current():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             rows = q(c, "SELECT pid, usename, application_name, client_addr, state, query_start, query, extract(epoch from (now()-query_start))*1000 AS duration_ms FROM pg_stat_activity WHERE state<>'idle' AND pid<>pg_backend_pid() AND datname=current_database() AND extract(epoch from (now()-query_start))*1000>=100 ORDER BY query_start LIMIT 50")
             for r in rows:
@@ -688,10 +761,10 @@ def api_show():
     node = (request.args.get('node') or '').strip()
     allowed = {'RECOVERY_MIN_APPLY_DELAY', 'ARCHIVE_MODE'}
     if param not in allowed: return jsonify({'ok': False, 'error': 'параметр не поддерживается'})
-    t = next((n for n in NODES if n['name'] == node), None)
+    t = find_node(node)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     c = pg_conn(t['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         rows = q(c, f"SHOW {param}")
         value = rows[0].get(param.lower()) if rows else None
@@ -707,10 +780,10 @@ def api_exec():
     up = sql.upper()
     for cmd in ['DROP ','TRUNCATE ','ALTER SYSTEM ','CREATE ROLE ','ALTER ROLE ','REVOKE ']:
         if up.startswith(cmd): return jsonify({'ok': False, 'error': f'{cmd.strip()} запрещено'})
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     c = pg_conn(t['host'], database=db)
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cur = c.cursor(); t0 = time.time(); cur.execute(sql); dt = time.time() - t0
         if cur.description:
@@ -738,7 +811,7 @@ def api_dba_summary():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             s = {'idle':[],'long':[],'bloat':[],'vacuum':[],'unused':[],'deadlocks':[],'alerts':[]}
             try:
@@ -776,7 +849,7 @@ def api_bloat():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             t = q(c, "SELECT u.schemaname, u.relname AS t, u.n_dead_tup, u.n_live_tup, CASE WHEN u.n_live_tup+u.n_dead_tup>0 THEN round(100.0*u.n_dead_tup/(u.n_live_tup+u.n_dead_tup),2) ELSE 0 END AS pct, pg_total_relation_size(u.relid) AS sz, u.last_autovacuum FROM pg_stat_user_tables u WHERE u.n_dead_tup>100 ORDER BY u.n_dead_tup DESC")
             ix = q(c, "SELECT schemaname, relname AS t, indexrelname AS ix, pg_relation_size(indexrelid) AS sz, idx_scan FROM pg_stat_user_indexes ORDER BY sz DESC LIMIT 50")
@@ -824,10 +897,10 @@ def api_connections():
 def api_kill():
     b = request.json or {}; nm, pid = b.get('node'), b.get('pid')
     if not nm or not pid: return jsonify({'ok': False, 'error': 'node и pid обязательны'})
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     c = pg_conn(t['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cur = c.cursor(); cur.execute("SELECT pg_terminate_backend(%s)", (pid,)); ok = cur.fetchone()[0]; cur.close(); c.close()
         return jsonify({'ok': ok, 'data': {'terminated': ok}})
@@ -841,7 +914,7 @@ def api_cancel():
     ln = leader_node()
     if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
     c = pg_conn(ln['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cur = c.cursor(); cur.execute("SELECT pg_cancel_backend(%s)", (pid,)); ok = cur.fetchone()[0]; cur.close(); c.close()
         return jsonify({'ok': ok, 'data': {'cancelled': ok}})
@@ -885,7 +958,7 @@ def api_vacuum():
     ln = leader_node()
     if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
     c = pg_conn(ln['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cmd = 'VACUUM' + (' FULL' if full else '') + (' ANALYZE' if anl else '') + f' {qi_s}.{qi_t}'
         cur = c.cursor(); t0 = time.time(); cur.execute(cmd); dt = time.time() - t0; cur.close(); c.close()
@@ -902,7 +975,7 @@ def api_dropidx():
     ln = leader_node()
     if not ln: return jsonify({'ok': False, 'error': 'Лидер не найден'})
     c = pg_conn(ln['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cur = c.cursor(); cur.execute(f"DROP INDEX CONCURRENTLY {qi_s}.{qi_ix}"); cur.close(); c.close()
         return jsonify({'ok': True, 'data': {'message': f'{sch}.{ix} удалён'}})
@@ -914,7 +987,7 @@ def api_delay_replica():
     b = request.json or {}; nm = b.get('node'); reset = bool(b.get('reset'))
     try: hours = max(1, min(24, int(b.get('hours', 1) or 1)))
     except (TypeError, ValueError): return jsonify({'ok': False, 'error': 'hours должно быть числом (1–24)'})
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     info = patroni_request(t, 'GET', '/patroni')
     role = (info['data'].get('role','') if info['ok'] else '').lower()
@@ -924,7 +997,7 @@ def api_delay_replica():
         DELAY_CACHE.pop(t['host'], None)
         return jsonify({'ok': True, 'data': {'node': nm, 'reset': reset, 'hours': hours, 'via': 'agent', 'cmd_id': cmd_id}})
     c = pg_conn(t['host'])
-    if not c: return jsonify({'ok': False, 'error': 'Не удалось подключиться'})
+    if not c: return jsonify({'ok': False, 'error': pg_fail_msg()})
     try:
         cur = c.cursor()
         if reset: cur.execute("ALTER SYSTEM RESET recovery_min_apply_delay")
@@ -948,7 +1021,7 @@ def api_cfgrecs():
         ln = leader_node()
         if not ln: return {'ok': False, 'error': 'Лидер не найден'}
         c = pg_conn(ln['host'])
-        if not c: return {'ok': False, 'error': 'Не удалось подключиться'}
+        if not c: return {'ok': False, 'error': pg_fail_msg()}
         try:
             cur = {}
             for p in TUNE_PARAMS:
@@ -980,7 +1053,7 @@ bp_ops = Blueprint('ops', __name__)
 @bp_ops.route('/api/ops/restart', methods=['POST'])
 def api_restart():
     nm = (request.json or {}).get('node')
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     info = patroni_request(t, 'GET', '/patroni')
     if not info['ok']: return jsonify({'ok': False, 'error': 'нет информации о ноде'})
@@ -990,7 +1063,7 @@ def api_restart():
 @bp_ops.route('/api/ops/reload', methods=['POST'])
 def api_reload():
     nm = (request.json or {}).get('node')
-    t = next((n for n in NODES if n['name'] == nm), None)
+    t = find_node(nm)
     if not t: return jsonify({'ok': False, 'error': 'Нода не найдена'})
     return jsonify(patroni_request(t, 'POST', '/reload'))
 
@@ -1397,12 +1470,22 @@ def api_center_clusters():
     return jsonify({'ok': True, 'data': [{'name':c['name'],'active':c['name']==CLUSTER_NAME} for c in CLUSTERS]})
 
 @bp_center.route('/api/center/select', methods=['POST'])
+def _switch_cluster(c):
+    """Активный кластер + сброс всего, что относится к предыдущему."""
+    global NODES, CLUSTER_NAME, CURRENT_CLUSTER
+    NODES = c['nodes']; CLUSTER_NAME = c['name']; CURRENT_CLUSTER = c
+    _MEMBER_HOST.clear(); LSN_CACHE.clear(); LAG_HISTORY.clear(); DELAY_CACHE.clear(); PG_ERRORS.clear()
+    with _LSN_CACHE_LOCK:
+        _LSN_CACHE_LAST['ts'] = 0; _LSN_CACHE_LAST['value'] = None
+    try:
+        import pgx; pgx.cache_clear('')
+    except Exception: pass
+
 def api_center_select():
-    global NODES, CLUSTER_NAME
     name = (request.json or {}).get('name')
     c = next((x for x in CLUSTERS if x['name'] == name), None)
     if not c: return jsonify({'ok': False, 'error': 'кластер не найден'})
-    NODES = c['nodes']; CLUSTER_NAME = c['name']
+    _switch_cluster(c)
     return jsonify({'ok': True, 'data': {'name': CLUSTER_NAME}})
 # ==================== PROMETHEUS /metrics ====================
 @app.route('/metrics')
@@ -1557,6 +1640,76 @@ ASSET_V = _asset_version()
 def index():
     v = _asset_version() if app.debug else ASSET_V
     return render_template('index.html', cluster_name=CLUSTER_NAME, asset_v=v)
+
+def _human_net_error(e):
+    """Сетевые ошибки requests/psycopg2 → короткое объяснение для DBA."""
+    t = str(e or '')
+    low = t.lower()
+    if 'timed out' in low or 'timeout expired' in low or 'connecttimeout' in low:
+        return 'таймаут: узел не отвечает (закрыт порт/межсетевой экран или неверный адрес)'
+    if 'refused' in low:
+        return 'соединение отклонено: на этом порту никто не слушает (проверьте порт)'
+    if 'password authentication failed' in low:
+        return 'неверный пароль (postgres.password в config.yaml)'
+    if 'no pg_hba.conf entry' in low:
+        return 'нет строки в pg_hba.conf для адреса консоли: ' + t.split('no pg_hba.conf entry', 1)[1][:160]
+    if 'does not exist' in low:
+        return t[:200]
+    if 'name or service not known' in low or 'nodename nor servname' in low or 'getaddrinfo' in low:
+        return 'имя узла не разрешается в DNS'
+    return t[:200]
+
+def connectivity():
+    """Проверка каждого узла из config.yaml: REST Patroni, имя члена кластера,
+    подключение консоли к PostgreSQL, агент. Используется экраном «Кластер» и
+    tools/check_config.py — первое, что смотреть, если «ничего не работает»."""
+    d_user, _, d_db, d_port = _pg_defaults()
+    def one(n):
+        out = {'config_name': n['name'], 'host': n['host'], 'rest_port': n.get('port', 8008)}
+        r = patroni_request(n, 'GET', '/patroni')
+        out['rest_ok'] = r['ok']
+        out['rest_error'] = None if r['ok'] else _human_net_error(r.get('error') or f"HTTP {r.get('status_code')}")
+        d = r.get('data') or {}
+        out['member_name'] = (d.get('patroni') or {}).get('name') or d.get('name')
+        out['role'] = d.get('role'); out['state'] = d.get('state')
+        c = pg_conn(n['host'])
+        out['pg_ok'] = bool(c)
+        if c:
+            try:
+                out['pg_version'] = q(c, "SELECT current_setting('server_version') AS v")[0]['v']
+            except Exception: pass
+            c.close()
+        else:
+            out['pg_error'] = _human_net_error(pg_error(n['host']) or '')
+        name = out['member_name'] or n['name']
+        out['agent_online'] = bool(agent_api and agent_api.agent_online(name))
+        return out
+    nodes = [f.result() for f in [EXECUTOR.submit(one, n) for n in NODES]]
+    issues = []
+    for x in nodes:
+        if not x['rest_ok']:
+            issues.append({'level': 'bad', 'text': f"{x['config_name']}: REST API Patroni {x['host']}:{x['rest_port']} недоступен — {x['rest_error']}",
+                           'fix': 'Проверьте host/port узла в config.yaml (порт REST API Patroni, обычно 8008) и сетевой доступ с сервера консоли.'})
+        elif x['member_name'] and x['member_name'] != x['config_name']:
+            issues.append({'level': 'info', 'text': f"Узел {x['host']} в config.yaml назван «{x['config_name']}», а в Patroni — «{x['member_name']}»",
+                           'fix': f"Консоль сопоставляет их по адресу, но лучше указать name: {x['member_name']} — так совпадут журналы, агенты и алерты."})
+        if not x['pg_ok']:
+            issues.append({'level': 'bad', 'text': f"{x['config_name']}: консоль не подключается к PostgreSQL {x['host']}:{d_port} (база {d_db}, пользователь {d_user}) — {x.get('pg_error') or 'нет ответа'}",
+                           'fix': ('Проверьте postgres.user / password / port в config.yaml (или блок postgres кластера) и строку в pg_hba.conf '
+                                   'для адреса сервера консоли, например: host all ' + d_user + ' <IP консоли>/32 scram-sha-256. '
+                                   'Без подключения к PostgreSQL пусты экраны баз, DBA, рисков, ASH и анализатора.')})
+    names = [x['member_name'] for x in nodes if x['member_name']]
+    return {'cluster': CLUSTER_NAME, 'nodes': nodes, 'issues': issues,
+            'pg_user': d_user, 'pg_port': d_port, 'pg_db': d_db,
+            'level': 'bad' if any(i['level'] == 'bad' for i in issues) else ('info' if issues else 'ok'),
+            'members': names}
+
+@app.route('/api/diag/connectivity')
+def api_connectivity():
+    import demo as _demo
+    if _demo.ENABLED:
+        return jsonify({'ok': True, 'data': {'cluster': CLUSTER_NAME, 'nodes': [], 'issues': [], 'level': 'ok'}})
+    return jsonify({'ok': True, 'data': connectivity()})
 
 @app.route('/healthz')
 def healthz():

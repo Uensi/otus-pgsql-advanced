@@ -13,3 +13,4 @@ dcs_config.json
 .demo-data/
 .claude/settings.local.json
 *.tmp
+.check-data/
